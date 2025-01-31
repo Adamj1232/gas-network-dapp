@@ -1,16 +1,15 @@
 import {
-	type WriteChain,
+	type OracleChain,
 	type ReadChain,
-	WritableChainKey,
-	ReadableChainKey,
+	OracleNetworkKey,
+	TargetNetworkKey,
 	type QuantileMap
 } from '$lib/@types/types'
 
 export const gasNetwork = {
 	// url: 'https://http-rpc.devnet.gas.network',
 	url: 'https://test.devnet.gas.network',
-	contract: '0xC2F61FAfA65D874725e485f4B52B9B495559F381',
-	v2Contract: '0x106A0e60fb930b96BDF9da93997747601435e1d9'
+	contract: '0x106A0e60fb930b96BDF9da93997747601435e1d9'
 }
 
 export const evmV2ContractTypValues = [107, 322]
@@ -26,240 +25,236 @@ export const quantiles: QuantileMap = {
 	Q70: 70
 }
 
-export const writableChains: Record<WritableChainKey, WriteChain> = {
-	// [WritableChainKey.ARBITRUM_SEPOLIA]: {
+export const oracleChains: Record<OracleNetworkKey, OracleChain> = {
+	// [OracleNetworkKey.ARBITRUM_SEPOLIA]: {
 	//   chainId: 421614,
 	//   display: 'Arb Sepolia',
 	//   rpcUrl: 'https://arbitrum-sepolia.gateway.tenderly.co',
 	//   contract: '',
 	// blockExplorerUrl: 'https://sepolia.arbiscan.io'
 	// },
-	// [WritableChainKey.DEVNET]: {
+	// [OracleNetworkKey.DEVNET]: {
 	// 	chainId: 19735516467,
 	// 	display: 'Gas Devnet',
 	// 	rpcUrl: 'https://http-rpc.devnet.gas.network',
-	// 	v2Contract: '0xeb4AE8e5828d0675F4D8420A188F53E1Fdf65e5E',
+	// 	contract: '0xeb4AE8e5828d0675F4D8420A188F53E1Fdf65e5E',
 	// 	blockExplorerUrl: 'https://explorer.devnet.gas.network'
 	// },
-	[WritableChainKey.SEPOLIA]: {
+	[OracleNetworkKey.SEPOLIA]: {
 		chainId: 11155111,
 		display: 'Ethereum Sepolia',
 		rpcUrl: 'https://endpoints.omniatech.io/v1/eth/sepolia/public',
-		contract: '0xE4859432d9Af6D40C2D923e3F13D66057F4AEcA0',
 		blockExplorerUrl: 'https://sepolia.etherscan.io',
-		v2Contract: '0xCc936bE977BeDb5140C5584d8B6043C9068622A6'
+		contract: '0xCc936bE977BeDb5140C5584d8B6043C9068622A6'
 	},
-	[WritableChainKey.OP_SEPOLIA]: {
+	[OracleNetworkKey.OP_SEPOLIA]: {
 		chainId: 11155420,
 		display: 'Optimism Sepolia',
 		rpcUrl: 'https://sepolia.optimism.io',
-		contract: '0x1a3d7A0bD9585B730e615aE0fD9a2294C33Df1E1',
 		blockExplorerUrl: 'https://sepolia-optimism.etherscan.io',
-		v2Contract: '0x20A5DCE3646BD975edEE3082319bd0dB64A0e0B9'
+		contract: '0x20A5DCE3646BD975edEE3082319bd0dB64A0e0B9'
 	},
-	[WritableChainKey.BASE_SEPOLIA]: {
+	[OracleNetworkKey.BASE_SEPOLIA]: {
 		chainId: 84532,
 		display: 'Base Sepolia',
 		rpcUrl: 'https://sepolia.base.org',
-		contract: '0x1a3d7A0bD9585B730e615aE0fD9a2294C33Df1E1',
 		blockExplorerUrl: 'https://sepolia.basescan.org',
-		v2Contract: '0xD87f5Ea40C592DfFAe5B87922E1cdA2bb44CB67F'
+		contract: '0xD87f5Ea40C592DfFAe5B87922E1cdA2bb44CB67F'
 	},
-	[WritableChainKey.LINEA_SEPOLIA]: {
+	[OracleNetworkKey.LINEA_SEPOLIA]: {
 		chainId: 59141,
 		display: 'Linea Sepolia',
 		rpcUrl: 'https://linea-sepolia-rpc.publicnode.com',
-		v2Contract: '0xb690C4CbDE4747FD614477Ab24c7630C5aAa6Ec5',
-		contract: '0x1a3d7A0bD9585B730e615aE0fD9a2294C33Df1E1',
+		contract: '0xb690C4CbDE4747FD614477Ab24c7630C5aAa6Ec5',
 		blockExplorerUrl: 'https://sepolia.lineascan.build'
 	},
-	[WritableChainKey.LINEA_MAINNET]: {
+	[OracleNetworkKey.LINEA_MAINNET]: {
 		chainId: 59144,
 		display: 'Linea Mainnet',
 		rpcUrl: 'https://rpc.linea.build',
-		v2Contract: '0x2c84370DaddBcD67d729689671A9Fe63DF39Cf13',
+		contract: '0x2c84370DaddBcD67d729689671A9Fe63DF39Cf13',
 		blockExplorerUrl: 'https://lineascan.build'
 	}
 }
 
-export const readableChains: Record<ReadableChainKey, ReadChain> = {
+export const targetReadChains: Record<TargetNetworkKey, ReadChain> = {
 	// Supported chains are sorted in the component handler
-	[ReadableChainKey.ARBITRUM]: {
+	[TargetNetworkKey.ARBITRUM]: {
 		chainId: 42161,
 		display: 'Arbitrum',
 		arch: 'evm'
 	},
-	[ReadableChainKey.AVALANCHE]: {
+	[TargetNetworkKey.AVALANCHE]: {
 		chainId: 43114,
 		display: 'Avalanche',
 		arch: 'evm'
 	},
-	[ReadableChainKey.BASE]: {
+	[TargetNetworkKey.BASE]: {
 		chainId: 8453,
 		display: 'Base',
 		arch: 'evm'
 	},
-	[ReadableChainKey.BLAST]: {
+	[TargetNetworkKey.BLAST]: {
 		chainId: 81457,
 		display: 'Blast',
 		arch: 'evm'
 	},
-	[ReadableChainKey.CHILIZ]: {
+	[TargetNetworkKey.CHILIZ]: {
 		chainId: 88888,
 		display: 'Chiliz',
 		arch: 'evm'
 	},
-	[ReadableChainKey.CRONOS]: {
+	[TargetNetworkKey.CRONOS]: {
 		chainId: 25,
 		display: 'Cronos',
 		arch: 'evm'
 	},
-	[ReadableChainKey.MAIN]: {
+	[TargetNetworkKey.MAIN]: {
 		chainId: 1,
 		display: 'Ethereum',
 		arch: 'evm'
 	},
-	[ReadableChainKey.FANTOM]: {
+	[TargetNetworkKey.FANTOM]: {
 		chainId: 250,
 		display: 'Fantom',
 		arch: 'evm'
 	},
-	[ReadableChainKey.LINEA]: {
+	[TargetNetworkKey.LINEA]: {
 		chainId: 59144,
 		display: 'Linea',
 		arch: 'evm'
 	},
-	[ReadableChainKey.LISK]: {
+	[TargetNetworkKey.LISK]: {
 		chainId: 1135,
 		display: 'Lisk',
 		arch: 'evm'
 	},
-	[ReadableChainKey.MANTLE]: {
+	[TargetNetworkKey.MANTLE]: {
 		chainId: 5000,
 		display: 'Mantle',
 		arch: 'evm'
 	},
-	[ReadableChainKey.MOONBEAM]: {
+	[TargetNetworkKey.MOONBEAM]: {
 		chainId: 1284,
 		display: 'Moonbeam',
 		arch: 'evm'
 	},
-	[ReadableChainKey.OPTIMISM]: {
+	[TargetNetworkKey.OPTIMISM]: {
 		chainId: 10,
 		display: 'Optimism',
 		arch: 'evm'
 	},
-	[ReadableChainKey.POLYGON]: {
+	[TargetNetworkKey.POLYGON]: {
 		chainId: 137,
 		display: 'Polygon',
 		arch: 'evm'
 	},
-	[ReadableChainKey.RONIN]: {
+	[TargetNetworkKey.RONIN]: {
 		chainId: 2020,
 		display: 'Ronin',
 		arch: 'evm'
 	},
-	[ReadableChainKey.SEI]: {
+	[TargetNetworkKey.SEI]: {
 		chainId: 1329,
 		display: 'SEI',
 		arch: 'evm'
 	},
-	[ReadableChainKey.ZKSYNC]: {
+	[TargetNetworkKey.ZKSYNC]: {
 		chainId: 324,
 		display: 'zkSync',
 		arch: 'evm'
 	},
-	[ReadableChainKey.GNOSIS]: {
+	[TargetNetworkKey.GNOSIS]: {
 		chainId: 100,
 		display: 'Gnosis',
 		arch: 'evm'
 	},
-	[ReadableChainKey.IMMUTABLE]: {
+	[TargetNetworkKey.IMMUTABLE]: {
 		chainId: 204,
 		display: 'Immutable zkEVM',
 		arch: 'evm'
 	},
-	[ReadableChainKey.OPBNB]: {
+	[TargetNetworkKey.OPBNB]: {
 		chainId: 13371,
 		display: 'opBNB',
 		arch: 'evm'
 	},
-	[ReadableChainKey.SCROLL]: {
+	[TargetNetworkKey.SCROLL]: {
 		chainId: 534352,
 		display: 'Scroll',
 		arch: 'evm'
 	},
-	[ReadableChainKey.ZETACHAIN]: {
+	[TargetNetworkKey.ZETACHAIN]: {
 		chainId: 7000,
 		display: 'ZetaChain',
 		arch: 'evm'
 	},
-	[ReadableChainKey.POLYGONZKEVM]: {
+	[TargetNetworkKey.POLYGONZKEVM]: {
 		chainId: 1101,
 		display: 'Polygon zkEVM',
 		arch: 'evm'
 	},
-	[ReadableChainKey.WORLDCHAIN]: {
+	[TargetNetworkKey.WORLDCHAIN]: {
 		chainId: 480,
 		display: 'World Chain',
 		arch: 'evm'
 	},
-	[ReadableChainKey.ROOTSTOCK]: {
+	[TargetNetworkKey.ROOTSTOCK]: {
 		chainId: 30,
 		display: 'Rootstock',
 		arch: 'evm'
 	},
-	[ReadableChainKey.FRAXTAL]: {
+	[TargetNetworkKey.FRAXTAL]: {
 		chainId: 252,
 		display: 'Fraxtal',
 		arch: 'evm'
 	},
-	[ReadableChainKey.ZORA]: {
+	[TargetNetworkKey.ZORA]: {
 		chainId: 7777777,
 		display: 'Zora',
 		arch: 'evm'
 	},
-	[ReadableChainKey.INK]: {
+	[TargetNetworkKey.INK]: {
 		chainId: 57073,
 		display: 'Ink',
 		arch: 'evm'
 	},
-	[ReadableChainKey.LENSSEPOLIA]: {
+	[TargetNetworkKey.LENSSEPOLIA]: {
 		chainId: 37111,
 		display: 'Lens Sepolia',
 		arch: 'evm'
 	},
-	[ReadableChainKey.PALM]: {
+	[TargetNetworkKey.PALM]: {
 		chainId: 11297108109,
 		display: 'Palm',
 		arch: 'evm'
 	},
-	[ReadableChainKey.STORYODYSSEY]: {
+	[TargetNetworkKey.STORYODYSSEY]: {
 		chainId: 1516,
 		display: 'Story Odyssey',
 		arch: 'evm'
 	},
-	[ReadableChainKey.BOB]: {
+	[TargetNetworkKey.BOB]: {
 		chainId: 60808,
 		display: 'Bob',
 		arch: 'evm'
 	},
-	[ReadableChainKey.SNAX]: {
+	[TargetNetworkKey.SNAX]: {
 		chainId: 2192,
 		display: 'SNAXchain',
 		arch: 'evm'
 	},
-	[ReadableChainKey.TAIKO]: {
+	[TargetNetworkKey.TAIKO]: {
 		chainId: 167000,
 		display: 'Taiko',
 		arch: 'evm'
 	},
-	[ReadableChainKey.METIS]: {
+	[TargetNetworkKey.METIS]: {
 		chainId: 1088,
 		display: 'Metis',
 		arch: 'evm'
 	},
-	[ReadableChainKey.MODE]: {
+	[TargetNetworkKey.MODE]: {
 		chainId: 34443,
 		display: 'Mode',
 		arch: 'evm'
@@ -267,7 +262,7 @@ export const readableChains: Record<ReadableChainKey, ReadChain> = {
 
 	// Add new chains above this
 	// Unsupported chain for error testing
-	[ReadableChainKey.UNSUPPORTED_CHAIN]: {
+	[TargetNetworkKey.UNSUPPORTED_CHAIN]: {
 		chainId: 1638,
 		display: 'Unsupported Chain',
 		arch: 'unsupported'

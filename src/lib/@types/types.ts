@@ -38,7 +38,7 @@ export interface PayloadValues {
 	payloads: Array<VPayload>
 }
 
-export enum WritableChainKey {
+export enum OracleNetworkKey {
 	// ARBITRUM_SEPOLIA = 'arbitrumSepolia',
 	// DEVNET = 'devnet'
 	SEPOLIA = 'sepolia',
@@ -48,7 +48,7 @@ export enum WritableChainKey {
 	LINEA_MAINNET = 'linea'
 }
 
-export enum ReadableChainKey {
+export enum TargetNetworkKey {
 	ARBITRUM = 'arb',
 	AVALANCHE = 'avalanche',
 	BASE = 'base',
@@ -91,16 +91,12 @@ export interface ReadChain {
 	chainId: number
 	display: string
 	arch: 'evm' | 'btc' | 'unsupported'
-	v2Supported?: boolean
 }
 
-export type WriteChain = {
+export type OracleChain = {
 	chainId: number
 	display: string
 	rpcUrl: string
 	blockExplorerUrl: string
-} & (
-	| { contract: string; v2Contract?: string }
-	| { contract?: string; v2Contract: string }
-	| { contract: string; v2Contract: string }
-)
+  contract: string
+}

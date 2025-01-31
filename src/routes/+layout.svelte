@@ -5,8 +5,8 @@
 
 <svelte:head>
 	<!-- set default title and meta to all pages -->
-	<title>Gas Network Demo</title>
-	<meta name="description" content="Gas Network Demo" />
+	<title>Gas Network Dapp</title>
+	<meta name="description" content="Gas Network Dapp" />
 	<!-- load fonts -->
 	<link rel="preconnect" href="https://fonts.bunny.net" />
 	<link
