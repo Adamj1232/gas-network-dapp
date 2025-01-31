@@ -64,7 +64,6 @@
 	let onboard: OnboardAPI
 	onMount(async () => {
 		onboard = await getOnboard()
-		onboard.connectWallet()
 		const savedSetting = localStorage.getItem('v2ContractEnabled')
 		if (savedSetting !== null) {
 			v2ContractEnabled = savedSetting === 'true'
@@ -82,6 +81,7 @@
 		selectedOracleNetwork =
 			Object.values(oracleChains).find((c) => c.chainId === Number(targetNetwork)) ||
 			oracleChains[OracleNetworkKey.LINEA_SEPOLIA]
+		// onboard.connectWallet()
 	})
 
 	// Create a reactive timer that updates when v2Timestamp changes
@@ -202,6 +202,16 @@
 			readFromTargetNetErrorMessage = revertErrorFromContract || (error as string)
 		}
 	}
+let firstAttemptSent = false
+	$: if ($wallets$?.length > 0 && !firstAttemptSent) {
+    firstAttemptSent = true
+		const [primaryWallet] = $wallets$
+		handleGasEstimation(
+			primaryWallet.provider,
+			selectedTargetNetwork.chainId,
+			selectedOracleNetwork.chainId
+		)
+	} 
 
 	async function readFromOracle(provider: any) {
 		try {
@@ -336,7 +346,7 @@
 			</span>
 		</div>
 
-		{#if onboard && !$wallets$?.length}
+		{#if onboard?.connectWallet && !$wallets$?.length}
 			<div class="flex flex-col gap-2">
 				<button
 					class="w-full rounded-lg bg-brandAction px-6 py-3 font-medium text-brandBackground transition-colors hover:bg-brandAction/80"
@@ -403,11 +413,11 @@
 									2
 								)}</pre>
 						</Drawer>
-						{#if v2ContractRawRes}
+						<!-- {#if v2ContractRawRes}
 							Raw Data:
 							<pre
 								class="m-0 overflow-x-auto bg-gray-50 p-1 text-xs text-gray-800 sm:p-6 sm:text-sm">{v2ContractRawRes}</pre>
-						{/if}
+						{/if} -->
 						<p>
 							Data created on GasNet at: {new Date(
 								Number(v2ContractValues.timestamp)
