@@ -1,11 +1,6 @@
-import {
-	type OracleChain,
-	OracleNetworkKey,
-	type QuantileMap
-} from '$lib/@types/types'
+import { type OracleChain, OracleNetworkKey } from '$lib/@types/types'
 
 export const gasNetwork = {
-	// url: 'https://http-rpc.devnet.gas.network',
 	url: 'https://test.devnet.gas.network',
 	contract: '0x106A0e60fb930b96BDF9da93997747601435e1d9'
 }
@@ -13,31 +8,9 @@ export const gasNetwork = {
 export const evmV2ContractTypValues = [107, 322]
 export const mainnetV2ContractTypValues = [107, 112, 322]
 
-// You can then create the object that implements this interface:
-export const quantiles: QuantileMap = {
-	Q99: 99,
-	Q98: 98,
-	Q95: 95,
-	Q90: 90,
-	Q80: 80,
-	Q70: 70
-}
+export const DEFAULT_ORACLE_NETWORK = OracleNetworkKey.SEPOLIA
 
 export const oracleChains: Record<OracleNetworkKey, OracleChain> = {
-	// [OracleNetworkKey.ARBITRUM_SEPOLIA]: {
-	//   chainId: 421614,
-	//   label: 'Arb Sepolia',
-	//   rpcUrl: 'https://arbitrum-sepolia.gateway.tenderly.co',
-	//   contract: '',
-	// blockExplorerUrl: 'https://sepolia.arbiscan.io'
-	// },
-	// [OracleNetworkKey.DEVNET]: {
-	// 	chainId: 19735516467,
-	// 	label: 'Gas Devnet',
-	// 	rpcUrl: 'https://http-rpc.devnet.gas.network',
-	// 	contract: '0xeb4AE8e5828d0675F4D8420A188F53E1Fdf65e5E',
-	// 	blockExplorerUrl: 'https://explorer.devnet.gas.network'
-	// },
 	[OracleNetworkKey.SEPOLIA]: {
 		chainId: 11155111,
 		label: 'Ethereum Sepolia',

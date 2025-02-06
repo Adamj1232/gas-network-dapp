@@ -3,11 +3,10 @@
 	import { map, share } from 'rxjs/operators'
 	import { timer, type Observable } from 'rxjs'
 	import type { OnboardAPI, WalletState } from '@web3-onboard/core'
-	import { OracleNetworkKey, type PayloadValues, type VPayload } from '$lib/@types/types'
+	import { OracleNetworkKey } from '$lib/@types/types'
 	import { getOnboard } from '$lib/services/web3-onboard'
 	import {
 		oracleChains,
-		quantiles,
 		gasNetwork,
 		archSchemaMap,
 		evmTypeSchema,
@@ -16,24 +15,22 @@
 	} from '../constants'
 	import consumerV2 from '$lib/abis/consumerV2.json'
 	import gasnetV2 from '$lib/abis/gasnetV2.json'
-	import type { EstimationData, OracleChain, QuantileMap, ReadChain } from '$lib/@types/types'
+	import type { OracleChain, ReadChain } from '$lib/@types/types'
 	import type { Contract } from 'ethers'
 	import { fetchChains } from '$lib/services/api'
+	import { parsePayload } from '$lib/utils/payload'
+	import {
+		orderAndFilterChainsAlphabetically,
+		orderAndFilterReadChainsAlphabetically
+	} from '$lib/utils/sorting'
 
-	let publishedGasData: {
-		gasPrice: string
-		maxPriorityFeePerGas: string
-		maxFeePerGas: string
-	} | null = null
 	let v2PublishedGasData: Record<string, number | bigint> | null = null
 	let v2RawData: Record<number, [string, number, number]> = {} as Record<
 		number,
 		[string, number, number]
 	>
 
-	let v2ContractValues: PayloadValues | null = null
 	let v2ContractRawRes: string | null = null
-	let gasEstimation: EstimationData | null = null
 	let transactionHash: string | null = null
 	let publishErrorMessage: string | null = null
 	let readFromGasNetErrorMessage: string | null = null
@@ -47,7 +44,6 @@
 	// Update your selected chain variables to use the enums
 	let selectedTargetNetwork: ReadChain
 	let selectedOracleNetwork: OracleChain
-	let selectedQuantile: keyof QuantileMap = 'Q99'
 	let selectedTimeout = 3600000
 	let v2ContractEnabled = true
 
@@ -235,7 +231,6 @@
 			v2PublishedGasData = null
 			handleV2OracleValues(gasNetContract)
 		} catch (error) {
-			publishedGasData = null
 			v2PublishedGasData = null
 			console.error('Gas data read published data error:', error)
 			const revertErrorFromContract = (error as any)?.info?.error?.message || (error as any)?.reason
@@ -266,35 +261,6 @@
 		}
 	}
 
-	function parsePayload(payload: string): PayloadValues {
-		let pV = {} as PayloadValues
-		const buf = Buffer.from(payload.replace('0x', ''), 'hex')
-		pV.height = buf.readBigUInt64BE(0x17)
-		pV.chainid = buf.readBigUInt64BE(0xf)
-		pV.systemid = buf.readUint8(0xe)
-
-		let timeBuff = Buffer.alloc(8)
-		buf.copy(timeBuff, 2, 0x8, 0xe)
-		pV.timestamp = timeBuff.readBigUInt64BE(0)
-		let pLen = buf.readUint16BE(0x6)
-
-		pV.payloads = new Array()
-		let value = Buffer.alloc(0x20)
-		let pos = 0
-
-		for (let i = 0; i < pLen; i++) {
-			pos += 0x20 // also, skip header
-			buf.copy(value, 2, pos + 0x2)
-			pV.payloads.push({
-				typ: buf.readUint16BE(pos),
-				value: '0x' + value.toString('hex')
-			} as VPayload)
-		}
-
-		// ... and signature
-		return pV
-	}
-
 	async function handleGasEstimation(
 		provider: any,
 		TargetNetworkId: number,
@@ -302,8 +268,6 @@
 	) {
 		publishErrorMessage = null
 		readFromGasNetErrorMessage = null
-		gasEstimation = null
-		v2ContractValues = null
 		try {
 			const gasNetData = await fetchGasEstimationFromGasNet(TargetNetworkId.toString())
 			if (!gasNetData) {
@@ -316,7 +280,6 @@
 				throw new Error(`Failed to fetch gas estimation: ${gasNetData?.paramsPayload}`)
 			}
 
-			v2ContractValues = paramsPayload
 			v2ContractRawRes = rawTargetNetworkData
 
 			await onboard.setChain({ chainId: OracleNetworkId })
@@ -324,18 +287,6 @@
 		} catch (e) {
 			console.error(e)
 		}
-	}
-
-	function orderAndFilterChainsAlphabetically<T extends { label: string }>(
-		networksList: Record<string, T>
-	) {
-		return Object.entries(networksList).sort((a, b) => {
-			return a[1].label.localeCompare(b[1].label)
-		})
-	}
-
-	function orderAndFilterReadChainsAlphabetically(networksList: ReadChain[]): ReadChain[] {
-		return networksList.sort((a, b) => a.label.localeCompare(b?.label))
 	}
 </script>
 
@@ -455,8 +406,6 @@
 							on:click={() => readFromOracle(provider)}
 						>
 							Read {selectedTargetNetwork.label} Estimations from {selectedOracleNetwork.label}
-							{#if !v2ContractEnabled}<span>for the {quantiles[selectedQuantile]} Quantile</span
-								>{/if}
 						</button>
 
 						{#if v2PublishedGasData}
