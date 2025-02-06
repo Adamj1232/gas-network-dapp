@@ -49,9 +49,11 @@
 	},
 	"dependencies": {
 		"-": "^0.0.1",
+		"@web3-onboard/coinbase": "^2.4.1",
 		"@web3-onboard/core": "2.23.1",
 		"@web3-onboard/injected-wallets": "^2.11.2",
 		"@web3-onboard/metamask": "^2.2.0",
+		"@web3-onboard/walletconnect": "^2.6.2",
 		"ethers": "^6.13.4",
 		"intl-messageformat": "^10.7.6",
 		"rxjs": "^7.8.1",

@@ -1,5 +1,7 @@
 import gasNetIcon from '$lib/svg/gas-network-icon.svg?raw'
 import type { OnboardAPI } from '@web3-onboard/core'
+import walletConnectModule from '@web3-onboard/walletconnect'
+import coinbaseModule from '@web3-onboard/coinbase'
 
 const infura_key = '80633e48116943128cbab25e402764ab'
 
@@ -24,8 +26,15 @@ export async function getOnboard() {
 			}
 		})
 
+		const walletConnect = walletConnectModule({
+			projectId: 'bfc9c115580a2dba563e30828b913c0a',
+			dappUrl: 'https://gas.network'
+		})
+
+		const coinbaseWallet = coinbaseModule()
+
 		web3Onboard = Web3Onboard({
-			wallets: [metamask, injected],
+			wallets: [metamask, coinbaseWallet, injected, walletConnect],
 			chains: [
 				{
 					id: '0x1',
