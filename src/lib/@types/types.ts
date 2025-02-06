@@ -47,55 +47,15 @@ export enum OracleNetworkKey {
 	LINEA_SEPOLIA = 'lineaSepolia',
 	LINEA_MAINNET = 'linea'
 }
-
-export enum TargetNetworkKey {
-	ARBITRUM = 'arb',
-	AVALANCHE = 'avalanche',
-	BASE = 'base',
-	BLAST = 'blast',
-	CHILIZ = 'chiliz',
-	CRONOS = 'cronos',
-	MAIN = 'main',
-	FANTOM = 'fantom',
-	LINEA = 'linea',
-	LISK = 'lisk',
-	MANTLE = 'mantle',
-	MOONBEAM = 'moonbeam',
-	OPTIMISM = 'op',
-	POLYGON = 'polygon',
-	RONIN = 'ronin',
-	SEI = 'sei',
-	ZKSYNC = 'zksync',
-	UNSUPPORTED_CHAIN = 'unsupportedChain',
-	GNOSIS = 'gnosis',
-	IMMUTABLE = 'immutablezkenv',
-	OPBNB = 'opbnb',
-	SCROLL = 'scroll',
-	ZETACHAIN = 'zetachain',
-	POLYGONZKEVM = 'polygonzkevm',
-	WORLDCHAIN = 'worldchain',
-	ROOTSTOCK = 'rootstock',
-	FRAXTAL = 'fraxtal',
-	ZORA = 'zora',
-	INK = 'ink',
-	LENSSEPOLIA = 'lenssepolia',
-	PALM = 'palm',
-	STORYODYSSEY = 'storyodyssey',
-	BOB = 'bob',
-	SNAX = 'snax',
-	TAIKO = 'taiko',
-	METIS = 'metis',
-	MODE = 'mode'
-}
 export interface ReadChain {
 	chainId: number
-	display: string
+	label: string
 	arch: 'evm' | 'btc' | 'unsupported'
 }
 
 export type OracleChain = {
 	chainId: number
-	display: string
+	label: string
 	rpcUrl: string
 	blockExplorerUrl: string
   contract: string

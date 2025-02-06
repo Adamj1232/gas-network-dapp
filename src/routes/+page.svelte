@@ -3,15 +3,9 @@
 	import { map, share } from 'rxjs/operators'
 	import { timer, type Observable } from 'rxjs'
 	import type { OnboardAPI, WalletState } from '@web3-onboard/core'
-	import {
-		TargetNetworkKey,
-		OracleNetworkKey,
-		type PayloadValues,
-		type VPayload
-	} from '$lib/@types/types'
+	import { OracleNetworkKey, type PayloadValues, type VPayload } from '$lib/@types/types'
 	import { getOnboard } from '$lib/services/web3-onboard'
 	import {
-		targetReadChains,
 		oracleChains,
 		quantiles,
 		gasNetwork,
@@ -22,12 +16,9 @@
 	} from '../constants'
 	import consumerV2 from '$lib/abis/consumerV2.json'
 	import gasnetV2 from '$lib/abis/gasnetV2.json'
-	import consumer from '$lib/abis/consumer.json'
-	// import gasnet from '$lib/abis/gasnet.json'
 	import type { EstimationData, OracleChain, QuantileMap, ReadChain } from '$lib/@types/types'
-	import Drawer from '$lib/components/Drawer.svelte'
-	// import { createEstimationObject } from '$lib/utils'
 	import type { Contract } from 'ethers'
+	import { fetchChains } from '$lib/services/api'
 
 	let publishedGasData: {
 		gasPrice: string
@@ -50,7 +41,6 @@
 	let readFromTargetNetErrorMessage: string | null = null
 	let v2Timestamp: number | null = null
 	let isLoading = false
-	let isDrawerOpen = true
 	let wallets$: Observable<WalletState[]>
 	let readGasDataFromTargetChainTime: string
 
@@ -61,28 +51,53 @@
 	let selectedTimeout = 3600000
 	let v2ContractEnabled = true
 
+	let targetReadChains: ReadChain[] | undefined
 	let onboard: OnboardAPI
 	onMount(async () => {
+		targetReadChains = await fetchChains()
+		if (!targetReadChains) {
+			throw new Error('Failed to fetch chains')
+		}
 		onboard = await getOnboard()
 		const savedSetting = localStorage.getItem('v2ContractEnabled')
 		if (savedSetting !== null) {
 			v2ContractEnabled = savedSetting === 'true'
 		}
+		wallets$ = onboard.state.select('wallets').pipe(share())
 
-		// OnMount of the webpage I need to get the queryParams from the URL and set the selectedTargetNetwork and selectedOracleNetwork accordingly
+		// OnMount get the queryParams from the URL and set the selectedTargetNetwork and selectedOracleNetwork
+		getQueryParams()
+	})
+
+	const getQueryParams = () => {
+		if (!targetReadChains) return
 		const urlParams = new URLSearchParams(window.location.search)
 		const targetNetwork = urlParams.get('targetNetwork')
+		const oracleNetwork = urlParams.get('oracleNetwork')
 		const targetArch = urlParams.get('targetArch')
 
 		selectedTargetNetwork =
-			Object.values(targetReadChains).find(
-				(c) => c.chainId === Number(targetNetwork) && c.arch === targetArch
-			) || targetReadChains[TargetNetworkKey.MAIN]
+			targetReadChains.find((c) => c.chainId === Number(targetNetwork) && c.arch === targetArch) ||
+			targetReadChains.find((c) => c.chainId === 1)!
 		selectedOracleNetwork =
-			Object.values(oracleChains).find((c) => c.chainId === Number(targetNetwork)) ||
+			Object.values(oracleChains).find((c) => c.chainId === Number(oracleNetwork)) ||
 			oracleChains[OracleNetworkKey.LINEA_SEPOLIA]
-		// onboard.connectWallet()
-	})
+	}
+
+	$: if (onboard && $wallets$?.length === 0) {
+		onboard.connectWallet()
+	}
+
+	let firstAttemptSent = false
+	$: if ($wallets$?.length > 0 && !firstAttemptSent) {
+		firstAttemptSent = true
+		const [primaryWallet] = $wallets$
+		handleGasEstimation(
+			primaryWallet.provider,
+			selectedTargetNetwork.chainId,
+			selectedOracleNetwork.chainId
+		)
+	}
 
 	// Create a reactive timer that updates when v2Timestamp changes
 	$: timeElapsed$ = v2Timestamp
@@ -102,10 +117,6 @@
 		if (hours > 0) return `${hours}h ago`
 		if (minutes > 0) return `${minutes}m ${remainingSeconds}s ago`
 		return `${seconds}s ago`
-	}
-
-	$: if (onboard) {
-		wallets$ = onboard.state.select('wallets').pipe(share())
 	}
 
 	let ethersModule: typeof import('ethers')
@@ -142,7 +153,7 @@
 		try {
 			v2RawData = {} as Record<number, [string, number, number]>
 			const arch = archSchemaMap[selectedTargetNetwork.arch]
-			const { chainId, display } = selectedTargetNetwork
+			const { chainId, label } = selectedTargetNetwork
 			v2NoDataFoundErrorMsg = null
 			v2Timestamp = null
 
@@ -161,7 +172,7 @@
 
 				const [value, height, timestamp] = contractRespPerType
 				if (value === 0n && height === 0n && timestamp === 0n) {
-					v2NoDataFoundErrorMsg = `Estimate not available for ${display} at selected recency`
+					v2NoDataFoundErrorMsg = `Estimate not available for ${label} at selected recency`
 				}
 
 				blockNumber = height
@@ -202,16 +213,6 @@
 			readFromTargetNetErrorMessage = revertErrorFromContract || (error as string)
 		}
 	}
-let firstAttemptSent = false
-	$: if ($wallets$?.length > 0 && !firstAttemptSent) {
-    firstAttemptSent = true
-		const [primaryWallet] = $wallets$
-		handleGasEstimation(
-			primaryWallet.provider,
-			selectedTargetNetwork.chainId,
-			selectedOracleNetwork.chainId
-		)
-	} 
 
 	async function readFromOracle(provider: any) {
 		try {
@@ -325,8 +326,17 @@ let firstAttemptSent = false
 		}
 	}
 
-	function formatBigInt(key: string, value: any) {
-		return typeof value === 'bigint' ? value.toString() : value
+	function orderAndFilterChainsAlphabetically<T extends { label: string }>(
+		networksList: Record<string, T>
+	) {
+		return Object.entries(networksList).sort((a, b) => {
+			return a[1].label.localeCompare(b[1].label)
+		})
+	}
+	function orderAndFilterReadChainsAlphabetically(networksList: ReadChain[]) {
+		return Object.entries(networksList).sort((a, b) => {
+			return a[1].label.localeCompare(b[1].label)
+		})
 	}
 </script>
 
@@ -360,7 +370,7 @@ let firstAttemptSent = false
 		{#if $wallets$}
 			{#each $wallets$ as { provider }}
 				<div class="flex flex-col gap-2 sm:gap-4">
-					<!-- <div class="flex items-center justify-between gap-5">
+					<div class="flex items-center justify-between gap-5">
 						<div class="flex w-full flex-col gap-1">
 							<label for="read-chain" class="ml-1 text-xs font-medium text-brandBackground/80"
 								>Estimates For</label
@@ -370,8 +380,8 @@ let firstAttemptSent = false
 								bind:value={selectedTargetNetwork}
 								class="w-full cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-800 outline-none hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
 							>
-								{#each orderAndFiltertargetReadChainsAlphabetically() as [key, chain]}
-									<option value={key}>{chain.display}</option>
+								{#each orderAndFilterReadChainsAlphabetically(targetReadChains!) as [_, chain]}
+									<option value={chain}>{chain.label}</option>
 								{/each}
 							</select>
 						</div>
@@ -384,27 +394,27 @@ let firstAttemptSent = false
 								bind:value={selectedOracleNetwork}
 								class="w-full cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-800 outline-none hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
 							>
-								{#each orderAndFilterChainsAlphabetically() as [key, chain]}
-									<option value={key}>{chain.display}</option>
+								{#each orderAndFilterChainsAlphabetically(oracleChains) as [_, chain]}
+									<option value={chain}>{chain.label}</option>
 								{/each}
 							</select>
 						</div>
-					</div> -->
-					<!-- <button
-						class="w-full rounded-lg bg-brandAction px-6 py-3 font-medium text-brandBackground transition-colors hover:bg-brandAction/80"
+					</div>
+					<button
+						class="w-full rounded-lg bg-brandAction px-6 py-3 font-medium text-brandBackground transition-colors hover:bg-brandAction/80 disabled:cursor-not-allowed disabled:opacity-50"
+						disabled={isLoading}
+						class:disabled={isLoading}
 						on:click={() =>
 							handleGasEstimation(
 								provider,
-								targetReadChains[selectedTargetNetwork].chainId,
-								oracleChains[selectedOracleNetwork].chainId
+								selectedTargetNetwork.chainId,
+								selectedOracleNetwork.chainId
 							)}
 					>
-						Read {targetReadChains[selectedTargetNetwork].display} Estimations and Write to {oracleChains[
-							selectedOracleNetwork
-						].display}
-					</button> -->
+						Write {selectedTargetNetwork.label} Estimations to {selectedOracleNetwork.label}
+					</button>
 
-					{#if v2ContractValues}
+					<!-- {#if v2ContractValues}
 						<Drawer {isDrawerOpen}>
 							<pre
 								class="m-0 overflow-x-auto bg-gray-50 p-1 text-xs text-gray-800 sm:p-6 sm:text-sm">{JSON.stringify(
@@ -412,13 +422,13 @@ let firstAttemptSent = false
 									formatBigInt,
 									2
 								)}</pre>
-						</Drawer>
-						<!-- {#if v2ContractRawRes}
+						</Drawer> -->
+					<!-- {#if v2ContractRawRes}
 							Raw Data:
 							<pre
 								class="m-0 overflow-x-auto bg-gray-50 p-1 text-xs text-gray-800 sm:p-6 sm:text-sm">{v2ContractRawRes}</pre>
 						{/if} -->
-						<p>
+					<!-- <p>
 							Data created on GasNet at: {new Date(
 								Number(v2ContractValues.timestamp)
 							).toLocaleString(undefined, {
@@ -427,7 +437,7 @@ let firstAttemptSent = false
 								timeStyle: 'long'
 							})}
 						</p>
-					{/if}
+					{/if} -->
 					<!-- {#if gasEstimation}
 						<Drawer {isDrawerOpen}>
 							<pre
@@ -461,7 +471,7 @@ let firstAttemptSent = false
 
 					{#if transactionHash}
 						<div class="my-4 flex flex-col gap-2">
-							<p class="text-gray-600">Confirmed Hash:</p>
+							<p class="text-gray-600">Confirmation:</p>
 							<a
 								href={`${selectedOracleNetwork.blockExplorerUrl}/tx/${transactionHash}`}
 								target="_blank"
@@ -528,14 +538,14 @@ let firstAttemptSent = false
 							class="w-full rounded-lg bg-brandAction px-6 py-3 font-medium text-brandBackground transition-colors hover:bg-brandAction/80"
 							on:click={() => readFromOracle(provider)}
 						>
-							Read {selectedTargetNetwork.display} Estimations from {selectedOracleNetwork.display}
+							Read {selectedTargetNetwork.label} Estimations from {selectedOracleNetwork.label}
 							{#if !v2ContractEnabled}<span>for the {quantiles[selectedQuantile]} Quantile</span
 								>{/if}
 						</button>
 
 						<!-- {#if publishedGasData}
 							<div class="w-full text-left">
-								Data read from {oracleChains[selectedOracleNetwork].display} at: {readGasDataFromTargetChainTime}
+								Data read from {oracleChains[selectedOracleNetwork].label} at: {readGasDataFromTargetChainTime}
 							</div>
 							<div
 								class="my-2 flex w-full flex-col gap-2 overflow-hidden rounded-lg border border-gray-200"
@@ -555,9 +565,9 @@ let firstAttemptSent = false
 								</div>
 							{:else}
 								<div class="w-full text-left">
-									Data read from {selectedOracleNetwork.display} at: {readGasDataFromTargetChainTime}
+									Data read from {selectedOracleNetwork.label} at: {readGasDataFromTargetChainTime}
 								</div>
-								<div
+								<!-- <div
 									class="my-2 flex w-full flex-col gap-2 overflow-hidden rounded-lg border border-gray-200 p-1"
 								>
 									Read Raw Data:
@@ -567,7 +577,7 @@ let firstAttemptSent = false
 											formatBigInt,
 											2
 										)}</pre>
-								</div>
+								</div> -->
 								<div class="mx-2 my-4 flex w-full flex-col gap-2 pb-3 text-xs sm:text-sm">
 									{#each Object.entries(v2PublishedGasData) as [key, value]}
 										<div class="flex justify-between gap-4 py-1">
