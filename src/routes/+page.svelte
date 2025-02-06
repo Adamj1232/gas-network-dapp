@@ -312,8 +312,8 @@
 
 			const { paramsPayload, rawTargetNetworkData } = gasNetData as any
 
-			if (!paramsPayload) {
-				throw new Error(`Failed to fetch V2 gas estimation: ${gasNetData?.paramsPayload}`)
+			if (!paramsPayload || !rawTargetNetworkData) {
+				throw new Error(`Failed to fetch gas estimation: ${gasNetData?.paramsPayload}`)
 			}
 
 			v2ContractValues = paramsPayload
@@ -333,10 +333,9 @@
 			return a[1].label.localeCompare(b[1].label)
 		})
 	}
-	function orderAndFilterReadChainsAlphabetically(networksList: ReadChain[]) {
-		return Object.entries(networksList).sort((a, b) => {
-			return a[1].label.localeCompare(b[1].label)
-		})
+
+	function orderAndFilterReadChainsAlphabetically(networksList: ReadChain[]): ReadChain[] {
+		return networksList.sort((a, b) => a.label.localeCompare(b?.label))
 	}
 </script>
 
@@ -380,7 +379,7 @@
 								bind:value={selectedTargetNetwork}
 								class="w-full cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-800 outline-none hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
 							>
-								{#each orderAndFilterReadChainsAlphabetically(targetReadChains!) as [_, chain]}
+								{#each orderAndFilterReadChainsAlphabetically(targetReadChains!) as chain}
 									<option value={chain}>{chain.label}</option>
 								{/each}
 							</select>
@@ -413,50 +412,6 @@
 					>
 						Write {selectedTargetNetwork.label} Estimations to {selectedOracleNetwork.label}
 					</button>
-
-					<!-- {#if v2ContractValues}
-						<Drawer {isDrawerOpen}>
-							<pre
-								class="m-0 overflow-x-auto bg-gray-50 p-1 text-xs text-gray-800 sm:p-6 sm:text-sm">{JSON.stringify(
-									v2ContractValues,
-									formatBigInt,
-									2
-								)}</pre>
-						</Drawer> -->
-					<!-- {#if v2ContractRawRes}
-							Raw Data:
-							<pre
-								class="m-0 overflow-x-auto bg-gray-50 p-1 text-xs text-gray-800 sm:p-6 sm:text-sm">{v2ContractRawRes}</pre>
-						{/if} -->
-					<!-- <p>
-							Data created on GasNet at: {new Date(
-								Number(v2ContractValues.timestamp)
-							).toLocaleString(undefined, {
-								timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-								dateStyle: 'medium',
-								timeStyle: 'long'
-							})}
-						</p>
-					{/if} -->
-					<!-- {#if gasEstimation}
-						<Drawer {isDrawerOpen}>
-							<pre
-								class="m-0 overflow-x-auto bg-gray-50 p-2 text-xs leading-relaxed text-gray-800 sm:p-6 sm:text-sm">{JSON.stringify(
-									gasEstimation,
-									formatBigInt,
-									2
-								)}</pre>
-						</Drawer>
-						<p>
-							Data created on GasNet at: {new Date(
-								Number(gasEstimation.timestamp) * 1000
-							).toLocaleString(undefined, {
-								timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-								dateStyle: 'medium',
-								timeStyle: 'long'
-							})}
-						</p>
-					{/if} -->
 
 					{#if isLoading}
 						<div class="my-4 flex flex-col items-center gap-2">
@@ -494,46 +449,7 @@
 					{/if}
 
 					<div class="flex w-full flex-col items-center justify-between gap-4">
-						<div class="flex w-full items-start justify-between gap-5">
-							<!-- {#if !v2ContractEnabled}
-								<div class="flex w-full flex-col gap-1">
-									<label
-										for="quantile-select"
-										class="ml-1 text-xs font-medium text-brandBackground/80">Read Quantile</label
-									>
-									<select
-										id="quantile-select"
-										bind:value={selectedQuantile}
-										class="w-full cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-800 outline-none hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
-									>
-										{#each Object.entries(quantiles) as [key, value]}
-											{#if key !== 'Q98'}
-												<option value={key}>Q{value}</option>
-											{:else}
-												<option value={key}>Q{value} - (unsupported)</option>
-											{/if}
-										{/each}
-									</select>
-								</div>
-							{/if} -->
-							<!-- <div class="flex w-full flex-col gap-1">
-								<label for="timeout-select" class="ml-1 text-xs font-medium text-brandBackground/80"
-									>Recency</label
-								>
-								<select
-									id="timeout-select"
-									bind:value={selectedTimeout}
-									class="w-full cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-800 outline-none hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
-								>
-									<option value={10000}>10 Sec</option>
-									<option value={30000}>30 Sec</option>
-									<option value={60000}>1 Min</option>
-									<option value={3600000}>1 Hr</option>
-									<option value={86400000}>1 Day</option>
-									<option value={604800000}>1 Week</option>
-								</select>
-							</div> -->
-						</div>
+						<div class="flex w-full items-start justify-between gap-5"></div>
 						<button
 							class="w-full rounded-lg bg-brandAction px-6 py-3 font-medium text-brandBackground transition-colors hover:bg-brandAction/80"
 							on:click={() => readFromOracle(provider)}
@@ -543,21 +459,6 @@
 								>{/if}
 						</button>
 
-						<!-- {#if publishedGasData}
-							<div class="w-full text-left">
-								Data read from {oracleChains[selectedOracleNetwork].label} at: {readGasDataFromTargetChainTime}
-							</div>
-							<div
-								class="my-2 flex w-full flex-col gap-2 overflow-hidden rounded-lg border border-gray-200"
-							>
-								<pre
-									class="m-0 overflow-scroll overflow-x-auto bg-gray-50 p-2 text-xs leading-relaxed text-gray-800 sm:p-6 sm:text-sm">{JSON.stringify(
-										publishedGasData,
-										formatBigInt,
-										2
-									)}</pre>
-							</div>
-						{/if} -->
 						{#if v2PublishedGasData}
 							{#if v2NoDataFoundErrorMsg}
 								<div class="w-full overflow-auto rounded-lg border border-red-500 p-4 text-red-500">
@@ -567,17 +468,7 @@
 								<div class="w-full text-left">
 									Data read from {selectedOracleNetwork.label} at: {readGasDataFromTargetChainTime}
 								</div>
-								<!-- <div
-									class="my-2 flex w-full flex-col gap-2 overflow-hidden rounded-lg border border-gray-200 p-1"
-								>
-									Read Raw Data:
-									<pre
-										class="m-0 overflow-scroll overflow-x-auto bg-gray-50 p-2 text-xs leading-relaxed text-gray-800 sm:p-6 sm:text-sm">{JSON.stringify(
-											v2RawData,
-											formatBigInt,
-											2
-										)}</pre>
-								</div> -->
+
 								<div class="mx-2 my-4 flex w-full flex-col gap-2 pb-3 text-xs sm:text-sm">
 									{#each Object.entries(v2PublishedGasData) as [key, value]}
 										<div class="flex justify-between gap-4 py-1">
