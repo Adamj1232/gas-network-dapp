@@ -23,6 +23,11 @@
 		orderAndFilterChainsAlphabetically,
 		orderAndFilterReadChainsAlphabetically
 	} from '$lib/utils/sorting'
+	import Drawer from '$lib/components/Drawer.svelte'
+	import StepIndicator from '$lib/components/StepIndicator.svelte'
+	import { writable } from 'svelte/store'
+
+	const currentStep = writable(0)
 
 	let v2PublishedGasData: Record<string, number | bigint> | null = null
 	let v2RawData: Record<number, [string, number, number]> = {} as Record<
@@ -82,17 +87,6 @@
 
 	$: if (onboard && $wallets$?.length === 0) {
 		onboard.connectWallet()
-	}
-
-	let firstAttemptSent = false
-	$: if ($wallets$?.length > 0 && !firstAttemptSent) {
-		firstAttemptSent = true
-		const [primaryWallet] = $wallets$
-		handleGasEstimation(
-			primaryWallet.provider,
-			selectedTargetNetwork.chainId,
-			selectedOracleNetwork.chainId
-		)
 	}
 
 	// Create a reactive timer that updates when v2Timestamp changes
@@ -244,13 +238,15 @@
 			const { ethers } = await loadEthers()
 			const ethersProvider = new ethers.BrowserProvider(provider, 'any')
 			const signer = await ethersProvider.getSigner()
-			const contractAddress = selectedOracleNetwork.contract!
+			const contractAddress = selectedOracleNetwork.contract
 
 			const consumerContract = new ethers.Contract(contractAddress, consumerV2.abi, signer)
 
 			let transaction = await consumerContract.storeValues(v2ContractRawRes)
 
 			const receipt = await transaction.wait()
+			currentStep.set(2)
+
 			isLoading = false
 			transactionHash = receipt.hash
 		} catch (error) {
@@ -260,6 +256,8 @@
 			isLoading = false
 		}
 	}
+	let readGasPredictionsFromGasNet: any
+	let isDrawerOpen = false
 
 	async function handleGasEstimation(
 		provider: any,
@@ -269,13 +267,16 @@
 		publishErrorMessage = null
 		readFromGasNetErrorMessage = null
 		try {
+			currentStep.set(1)
+
 			const gasNetData = await fetchGasEstimationFromGasNet(TargetNetworkId.toString())
 			if (!gasNetData) {
 				throw new Error('No data received from GasNet')
 			}
 
 			const { paramsPayload, rawTargetNetworkData } = gasNetData as any
-
+			readGasPredictionsFromGasNet = paramsPayload
+			currentStep.set(2)
 			if (!paramsPayload || !rawTargetNetworkData) {
 				throw new Error(`Failed to fetch gas estimation: ${gasNetData?.paramsPayload}`)
 			}
@@ -287,6 +288,10 @@
 		} catch (e) {
 			console.error(e)
 		}
+	}
+
+	function formatBigInt(key: string, value: any) {
+		return typeof value === 'bigint' ? value.toString() : value
 	}
 </script>
 
@@ -363,6 +368,28 @@
 					>
 						Write {selectedTargetNetwork.label} Estimations to {selectedOracleNetwork.label}
 					</button>
+					{#if $currentStep > 0}
+						<StepIndicator {currentStep} />
+					{/if}
+					{#if readGasPredictionsFromGasNet}
+						<!-- <Drawer {isDrawerOpen}>
+							<pre
+								class="m-0 overflow-x-auto bg-gray-50 p-1 text-xs text-gray-800 sm:p-6 sm:text-sm">{JSON.stringify(
+									readGasPredictionsFromGasNet,
+									formatBigInt,
+									2
+								)}</pre>
+						</Drawer>
+						<p>
+							Gas estimate created on GasNet at: {new Date(
+								Number(readGasPredictionsFromGasNet.timestamp)
+							).toLocaleString(undefined, {
+								timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+								dateStyle: 'medium',
+								timeStyle: 'long'
+							})}
+						</p> -->
+					{/if}
 
 					{#if isLoading}
 						<div class="my-4 flex flex-col items-center gap-2">
@@ -370,7 +397,7 @@
 								class="h-12 w-12 animate-spin rounded-full border-4 border-brandBackground/20 border-t-brandBackground"
 							></div>
 							<p class="text-center sm:text-left">
-								Please Check Connected Browser Wallet for Progress
+								Awaiting Wallet Confirmation to Publish Gas Predictions
 							</p>
 						</div>
 					{/if}
