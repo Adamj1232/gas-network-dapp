@@ -245,7 +245,7 @@
 			let transaction = await consumerContract.storeValues(v2ContractRawRes)
 
 			const receipt = await transaction.wait()
-			currentStep.set(2)
+			currentStep.set(3)
 
 			isLoading = false
 			transactionHash = receipt.hash
