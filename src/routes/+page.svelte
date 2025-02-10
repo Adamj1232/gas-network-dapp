@@ -23,7 +23,6 @@
 		orderAndFilterChainsAlphabetically,
 		orderAndFilterReadChainsAlphabetically
 	} from '$lib/utils/sorting'
-	import Drawer from '$lib/components/Drawer.svelte'
 	import StepIndicator from '$lib/components/StepIndicator.svelte'
 	import { writable } from 'svelte/store'
 
@@ -204,7 +203,7 @@
 		}
 	}
 
-	async function readFromOracle(provider: any) {
+	const readFromOracle = async (provider: any) => {
 		try {
 			readFromTargetNetErrorMessage = null
 			await onboard.setChain({ chainId: selectedOracleNetwork.chainId })
@@ -249,6 +248,7 @@
 
 			isLoading = false
 			transactionHash = receipt.hash
+			readFromOracle(provider)
 		} catch (error) {
 			const revertErrorFromGasNetContract = (error as any)?.info?.error?.message
 			console.error('Publication error:', error)
@@ -290,8 +290,9 @@
 		}
 	}
 
-	function formatBigInt(key: string, value: any) {
-		return typeof value === 'bigint' ? value.toString() : value
+	function formatAddress(address: string | undefined): string {
+		if (!address) return ''
+		return `${address.slice(0, 6)}...${address.slice(-4)}`
 	}
 </script>
 
@@ -303,12 +304,18 @@
 	>
 		<div class="relative flex flex-col items-center justify-center">
 			<h1 class="mb-8 text-center text-3xl">Gas Network</h1>
-
-			<span
-				class="absolute right-0 top-0 rounded-md border border-brandBackground p-2 text-sm font-medium text-brandBackground/80"
-			>
-				<a href="https://gasnetwork.notion.site/" target="_blank">Documentation</a>
-			</span>
+      <span
+      class="absolute left-0 top-0 rounded-md border border-brandBackground p-2 text-sm font-medium text-brandBackground/80"
+    >
+      <a href="https://gasnetwork.notion.site/" target="_blank">Documentation</a>
+    </span>
+			{#if $wallets$?.[0]?.accounts?.[0]?.address}
+				<span
+					class="absolute right-0 top-0 rounded-md border border-brandBackground p-2 text-sm font-medium text-brandBackground/80"
+				>
+					{formatAddress($wallets$?.[0]?.accounts?.[0]?.address)}
+				</span>
+			{/if}
 		</div>
 
 		{#if onboard?.connectWallet && !$wallets$?.length}
@@ -371,25 +378,7 @@
 					{#if $currentStep > 0}
 						<StepIndicator {currentStep} />
 					{/if}
-					{#if readGasPredictionsFromGasNet}
-						<!-- <Drawer {isDrawerOpen}>
-							<pre
-								class="m-0 overflow-x-auto bg-gray-50 p-1 text-xs text-gray-800 sm:p-6 sm:text-sm">{JSON.stringify(
-									readGasPredictionsFromGasNet,
-									formatBigInt,
-									2
-								)}</pre>
-						</Drawer>
-						<p>
-							Gas estimate created on GasNet at: {new Date(
-								Number(readGasPredictionsFromGasNet.timestamp)
-							).toLocaleString(undefined, {
-								timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-								dateStyle: 'medium',
-								timeStyle: 'long'
-							})}
-						</p> -->
-					{/if}
+
 
 					{#if isLoading}
 						<div class="my-4 flex flex-col items-center gap-2">
@@ -427,13 +416,13 @@
 					{/if}
 
 					<div class="flex w-full flex-col items-center justify-between gap-4">
-						<div class="flex w-full items-start justify-between gap-5"></div>
-						<button
+						<!-- <div class="flex w-full items-start justify-between gap-5"></div> -->
+						<!-- <button
 							class="w-full rounded-lg bg-brandAction px-6 py-3 font-medium text-brandBackground transition-colors hover:bg-brandAction/80"
 							on:click={() => readFromOracle(provider)}
 						>
 							Read {selectedTargetNetwork.label} Estimations from {selectedOracleNetwork.label}
-						</button>
+						</button> -->
 
 						{#if v2PublishedGasData}
 							{#if v2NoDataFoundErrorMsg}
