@@ -256,8 +256,8 @@
 			isLoading = false
 		}
 	}
+  
 	let readGasPredictionsFromGasNet: any
-	let isDrawerOpen = false
 
 	async function handleGasEstimation(
 		provider: any,
@@ -416,13 +416,6 @@
 					{/if}
 
 					<div class="flex w-full flex-col items-center justify-between gap-4">
-						<!-- <div class="flex w-full items-start justify-between gap-5"></div> -->
-						<!-- <button
-							class="w-full rounded-lg bg-brandAction px-6 py-3 font-medium text-brandBackground transition-colors hover:bg-brandAction/80"
-							on:click={() => readFromOracle(provider)}
-						>
-							Read {selectedTargetNetwork.label} Estimations from {selectedOracleNetwork.label}
-						</button> -->
 
 						{#if v2PublishedGasData}
 							{#if v2NoDataFoundErrorMsg}
