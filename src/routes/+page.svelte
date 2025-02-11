@@ -46,7 +46,7 @@
 	let readGasDataFromTargetChainTime: string
 
 	// Update your selected chain variables to use the enums
-	let selectedTargetNetwork: ReadChain
+	let selectedEstimateNetwork: ReadChain
 	let selectedOracleNetwork: OracleChain
 	let selectedTimeout = 3600000
 	let v2ContractEnabled = true
@@ -65,19 +65,19 @@
 		}
 		wallets$ = onboard.state.select('wallets').pipe(share())
 
-		// OnMount get the queryParams from the URL and set the selectedTargetNetwork and selectedOracleNetwork
+		// OnMount get the queryParams from the URL and set the selectedEstimateNetwork and selectedOracleNetwork
 		getQueryParams()
 	})
 
 	const getQueryParams = () => {
 		if (!targetReadChains) return
 		const urlParams = new URLSearchParams(window.location.search)
-		const targetNetwork = urlParams.get('targetNetwork')
+		const estimateNetwork = urlParams.get('estimateNetwork')
 		const oracleNetwork = urlParams.get('oracleNetwork')
-		const targetArch = urlParams.get('targetArch')
+		const estimateArch = urlParams.get('estimateArch')
 
-		selectedTargetNetwork =
-			targetReadChains.find((c) => c.chainId === Number(targetNetwork) && c.arch === targetArch) ||
+		selectedEstimateNetwork =
+			targetReadChains.find((c) => c.chainId === Number(estimateNetwork) && c.arch === estimateArch) ||
 			targetReadChains.find((c) => c.chainId === 1)!
 		selectedOracleNetwork =
 			Object.values(oracleChains).find((c) => c.chainId === Number(oracleNetwork)) ||
@@ -125,7 +125,7 @@
 			const rpcProvider = new ethers.JsonRpcProvider(gasNetwork.url)
 			const gasNetContract = new ethers.Contract(gasNetwork.contract, gasnetV2.abi, rpcProvider)
 
-			const { arch } = selectedTargetNetwork
+			const { arch } = selectedEstimateNetwork
 			const payload = await gasNetContract.getValues(archSchemaMap[arch], chain)
 
 			return { paramsPayload: parsePayload(payload), rawTargetNetworkData: payload }
@@ -141,8 +141,8 @@
 	async function handleV2OracleValues(gasNetContract: Contract) {
 		try {
 			v2RawData = {} as Record<number, [string, number, number]>
-			const arch = archSchemaMap[selectedTargetNetwork.arch]
-			const { chainId, label } = selectedTargetNetwork
+			const arch = archSchemaMap[selectedEstimateNetwork.arch]
+			const { chainId, label } = selectedEstimateNetwork
 			v2NoDataFoundErrorMsg = null
 			v2Timestamp = null
 
@@ -256,7 +256,7 @@
 			isLoading = false
 		}
 	}
-  
+
 	let readGasPredictionsFromGasNet: any
 
 	async function handleGasEstimation(
@@ -339,7 +339,7 @@
 							>
 							<select
 								id="read-chain"
-								bind:value={selectedTargetNetwork}
+								bind:value={selectedEstimateNetwork}
 								class="w-full cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-800 outline-none hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
 							>
 								{#each orderAndFilterReadChainsAlphabetically(targetReadChains!) as chain}
@@ -369,11 +369,11 @@
 						on:click={() =>
 							handleGasEstimation(
 								provider,
-								selectedTargetNetwork.chainId,
+								selectedEstimateNetwork.chainId,
 								selectedOracleNetwork.chainId
 							)}
 					>
-						Write {selectedTargetNetwork.label} Estimations to {selectedOracleNetwork.label}
+						Write {selectedEstimateNetwork.label} Estimations to {selectedOracleNetwork.label}
 					</button>
 					{#if $currentStep > 0}
 						<StepIndicator {currentStep} />
