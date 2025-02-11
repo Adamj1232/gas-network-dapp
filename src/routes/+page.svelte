@@ -51,11 +51,11 @@
 	let selectedTimeout = 3600000
 	let v2ContractEnabled = true
 
-	let targetReadChains: ReadChain[] | undefined
+	let estimateReadChains: ReadChain[] | undefined
 	let onboard: OnboardAPI
 	onMount(async () => {
-		targetReadChains = await fetchChains()
-		if (!targetReadChains) {
+		estimateReadChains = await fetchChains()
+		if (!estimateReadChains) {
 			throw new Error('Failed to fetch chains')
 		}
 		onboard = await getOnboard()
@@ -70,15 +70,15 @@
 	})
 
 	const getQueryParams = () => {
-		if (!targetReadChains) return
+		if (!estimateReadChains) return
 		const urlParams = new URLSearchParams(window.location.search)
 		const estimateNetwork = urlParams.get('estimateNetwork')
 		const oracleNetwork = urlParams.get('oracleNetwork')
 		const estimateArch = urlParams.get('estimateArch')
 
 		selectedEstimateNetwork =
-			targetReadChains.find((c) => c.chainId === Number(estimateNetwork) && c.arch === estimateArch) ||
-			targetReadChains.find((c) => c.chainId === 1)!
+			estimateReadChains.find((c) => c.chainId === Number(estimateNetwork) && c.arch === estimateArch) ||
+			estimateReadChains.find((c) => c.chainId === 1)!
 		selectedOracleNetwork =
 			Object.values(oracleChains).find((c) => c.chainId === Number(oracleNetwork)) ||
 			oracleChains[OracleNetworkKey.LINEA_SEPOLIA]
@@ -342,7 +342,7 @@
 								bind:value={selectedEstimateNetwork}
 								class="w-full cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-800 outline-none hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
 							>
-								{#each orderAndFilterReadChainsAlphabetically(targetReadChains!) as chain}
+								{#each orderAndFilterReadChainsAlphabetically(estimateReadChains!) as chain}
 									<option value={chain}>{chain.label}</option>
 								{/each}
 							</select>
