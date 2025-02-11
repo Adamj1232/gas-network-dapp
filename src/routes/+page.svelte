@@ -72,9 +72,10 @@
 	const getQueryParams = () => {
 		if (!estimateReadChains) return
 		const urlParams = new URLSearchParams(window.location.search)
-		const estimateNetwork = urlParams.get('estimateNetwork')
 		const oracleNetwork = urlParams.get('oracleNetwork')
-		const estimateArch = urlParams.get('estimateArch')
+		const estimateNetwork = urlParams.get('estimateNetwork')
+    // TODO: Is this still needed?
+		const estimateArch = urlParams.get('estimateArch') || 'evm'
 
 		selectedEstimateNetwork =
 			estimateReadChains.find((c) => c.chainId === Number(estimateNetwork) && c.arch === estimateArch) ||
