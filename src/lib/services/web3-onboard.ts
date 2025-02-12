@@ -16,12 +16,12 @@ export async function getOnboard() {
 		const injected = injectedModule()
 		const metamask = metamaskModule({
 			options: {
-				extensionOnly: false,
+				extensionOnly: true,
 				i18nOptions: {
 					enabled: true
 				},
 				dappMetadata: {
-					name: 'Demo Gas Network'
+					name: 'Gas Network'
 				}
 			}
 		})
@@ -105,7 +105,7 @@ export async function getOnboard() {
 				}
 			],
 			connect: {
-				autoConnectAllPreviousWallet: true
+				autoConnectLastWallet: true
 			},
 			appMetadata: {
 				name: 'Gas Network Demo',
