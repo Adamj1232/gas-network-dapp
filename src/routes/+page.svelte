@@ -54,16 +54,22 @@
 	let estimateReadChains: ReadChain[] | undefined
 	let onboard: OnboardAPI
 	onMount(async () => {
-		estimateReadChains = await fetchChains()
-		if (!estimateReadChains) {
+		const [onboardPromise, estimateReadChainsPromise] = await Promise.all([
+			getOnboard(),
+			fetchChains() as Promise<ReadChain[]>
+		])
+		if (!estimateReadChainsPromise) {
 			throw new Error('Failed to fetch chains')
 		}
-		onboard = await getOnboard()
+
+		onboard = onboardPromise
+		wallets$ = onboard.state.select('wallets').pipe(share())
+		estimateReadChains = estimateReadChainsPromise
+
 		const savedSetting = localStorage.getItem('v2ContractEnabled')
 		if (savedSetting !== null) {
 			v2ContractEnabled = savedSetting === 'true'
 		}
-		wallets$ = onboard.state.select('wallets').pipe(share())
 
 		// OnMount get the queryParams from the URL and set the selectedEstimateNetwork and selectedOracleNetwork
 		getQueryParams()
@@ -74,12 +80,13 @@
 		const urlParams = new URLSearchParams(window.location.search)
 		const oracleNetwork = urlParams.get('oracleNetwork')
 		const estimateNetwork = urlParams.get('estimateNetwork')
-    // TODO: Is this still needed?
+		// TODO: Is this still needed?
 		const estimateArch = urlParams.get('estimateArch') || 'evm'
 
 		selectedEstimateNetwork =
-			estimateReadChains.find((c) => c.chainId === Number(estimateNetwork) && c.arch === estimateArch) ||
-			estimateReadChains.find((c) => c.chainId === 1)!
+			estimateReadChains.find(
+				(c) => c.chainId === Number(estimateNetwork) && c.arch === estimateArch
+			) || estimateReadChains.find((c) => c.chainId === 1)!
 		selectedOracleNetwork =
 			Object.values(oracleChains).find((c) => c.chainId === Number(oracleNetwork)) ||
 			oracleChains[OracleNetworkKey.LINEA_SEPOLIA]
@@ -305,11 +312,11 @@
 	>
 		<div class="relative flex flex-col items-center justify-center">
 			<h1 class="mb-8 text-center text-3xl">Gas Network</h1>
-      <span
-      class="absolute left-0 top-0 rounded-md border border-brandBackground p-2 text-sm font-medium text-brandBackground/80"
-    >
-      <a href="https://gasnetwork.notion.site/" target="_blank">Documentation</a>
-    </span>
+			<span
+				class="absolute left-0 top-0 rounded-md border border-brandBackground p-2 text-sm font-medium text-brandBackground/80"
+			>
+				<a href="https://gasnetwork.notion.site/" target="_blank">Documentation</a>
+			</span>
 			{#if $wallets$?.[0]?.accounts?.[0]?.address}
 				<span
 					class="absolute right-0 top-0 rounded-md border border-brandBackground p-2 text-sm font-medium text-brandBackground/80"
@@ -380,7 +387,6 @@
 						<StepIndicator {currentStep} />
 					{/if}
 
-
 					{#if isLoading}
 						<div class="my-4 flex flex-col items-center gap-2">
 							<div
@@ -417,7 +423,6 @@
 					{/if}
 
 					<div class="flex w-full flex-col items-center justify-between gap-4">
-
 						{#if v2PublishedGasData}
 							{#if v2NoDataFoundErrorMsg}
 								<div class="w-full overflow-auto rounded-lg border border-red-500 p-4 text-red-500">
