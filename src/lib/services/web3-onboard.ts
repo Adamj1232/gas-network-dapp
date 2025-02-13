@@ -16,7 +16,7 @@ export async function getOnboard() {
 		const injected = injectedModule()
 		const metamask = metamaskModule({
 			options: {
-				extensionOnly: true,
+				extensionOnly: false,
 				i18nOptions: {
 					enabled: true
 				},

@@ -154,7 +154,6 @@
 			v2NoDataFoundErrorMsg = null
 			v2Timestamp = null
 
-			let blockNumber
 			let estTimestamp
 			const v2ValuesObject = await (
 				chainId === 1 ? mainnetV2ContractTypValues : evmV2ContractTypValues
@@ -172,7 +171,6 @@
 					v2NoDataFoundErrorMsg = `Estimate not available for ${label} at selected recency`
 				}
 
-				blockNumber = height
 				estTimestamp = timestamp
 
 				const resDataMap = evmTypeSchema?.[typ]
@@ -187,12 +185,7 @@
 				v2Timestamp = Number(timestamp)
 				return {
 					'Estimate Chain ID': chainId,
-					'Estimate Timestamp': new Date(Number(estTimestamp)).toLocaleString(undefined, {
-						timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-						dateStyle: 'medium',
-						timeStyle: 'long'
-					}),
-					'Estimate Block Number': blockNumber,
+					'Last Publish': '',
 					...acc,
 					// Added for validation
 					[resDataMap.description]: (Number(value) / 1e9).toPrecision(4)
@@ -442,8 +435,8 @@
 											{:else}
 												<div>
 													<span>{value}</span>
-													{#if timeElapsed$ && key === 'Estimate Timestamp'}
-														<span>{` (${$timeElapsed$})`}</span>
+													{#if timeElapsed$ && key === 'Last Publish'}
+														<span>{`${$timeElapsed$} ago`}</span>
 													{/if}
 												</div>
 											{/if}

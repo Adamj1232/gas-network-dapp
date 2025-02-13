@@ -6,7 +6,7 @@ export const gasNetwork = {
 }
 
 export const evmV2ContractTypValues = [107, 322]
-export const mainnetV2ContractTypValues = [107, 112, 322]
+export const mainnetV2ContractTypValues = [107, 322]
 
 export const DEFAULT_ORACLE_NETWORK = OracleNetworkKey.SEPOLIA
 
