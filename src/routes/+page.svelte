@@ -53,6 +53,7 @@
 	let selectedEstimateNetwork: ReadChain
 	let selectedOracleNetwork: OracleChain
 	let selectedTimeout = 3600000
+	let selectedTimeoutDeltaDisplay = 86400000
 	let v2ContractEnabled = true
 
 	let estimateReadChains: ReadChain[] | undefined
@@ -65,8 +66,7 @@
 	// Initialize as a Subject to allow pushing new values
 	let estimateDeltaData$: Subject<any> = new Subject()
 
-	$: if ($wallets$?.[0] && selectedEstimateNetwork && selectedOracleNetwork) {
-    console.log('here')
+	$: if ($wallets$?.[0]?.provider && selectedEstimateNetwork && selectedOracleNetwork) {
 		getDeltaData()
 	}
 
@@ -75,9 +75,8 @@
 
 		const [gasNetResult, oracleResults] = await Promise.all([
 			fetchGasEstimationFromGasNet(),
-			readFromOracle($wallets$?.[0]?.provider)
+			readFromOracleDeltaDisplay($wallets$?.[0]?.provider)
 		])
-console.log(gasNetResult)
 		// Use the next method to push new data into the Subject
 		estimateDeltaData$.next({
 			gasNet: gasNetResult,
@@ -88,7 +87,6 @@ console.log(gasNetResult)
 	// Calculate time elapsed
 	const timeElapsed2$ = estimateDeltaData$.pipe(
 		switchMap((result) => {
-      console.log(result)
 			if (!result?.oracle?.timestamp) return of('')
 			const timestamp = Number(result.oracle.timestamp)
 			return timer(0, 1000).pipe(
@@ -118,8 +116,6 @@ console.log(gasNetResult)
 
 			const oracleGasPrice = Number(base_fee_per_gas) + Number(pred_max_priority_fee_per_gas_p90)
 
-			console.log(result)
-
 			return {
 				gasNetGasPrice: toGwei(gasNetGasPrice),
 				oracleGasPrice: toGwei(oracleGasPrice),
@@ -143,7 +139,10 @@ console.log(gasNetResult)
 	// Cleanup subscriptions
 	onDestroy(() => {
 		subscriptions.forEach((sub) => sub.unsubscribe())
+    clearInterval(intervalId)
+
 	})
+	let intervalId: ReturnType<typeof setInterval>
 
 	onMount(async () => {
 		const [onboardPromise, estimateReadChainsPromise] = await Promise.all([
@@ -165,6 +164,7 @@ console.log(gasNetResult)
 
 		// OnMount get the queryParams from the URL and set the selectedEstimateNetwork and selectedOracleNetwork
 		getQueryParams()
+		intervalId = setInterval(getDeltaData, 5000)
 	})
 
 	const getQueryParams = () => {
@@ -197,6 +197,7 @@ console.log(gasNetResult)
 		: null
 
 	function getTimeElapsed(timestamp: number) {
+		if (!timestamp) return '> 1 Hour'
 		const diff = Date.now() - timestamp
 		const seconds = Math.floor(diff / 1000)
 		const minutes = Math.floor(seconds / 60)
@@ -315,7 +316,7 @@ console.log(gasNetResult)
 		}
 	}
 
-	async function handleV2OracleValues(gasNetContract: Contract) {
+	async function handleV2OracleValuesDeltaDisplay(gasNetContract: Contract) {
 		try {
 			const arch = archSchemaMap[selectedEstimateNetwork.arch]
 			const { chainId, label } = selectedEstimateNetwork
@@ -327,7 +328,7 @@ console.log(gasNetResult)
 						arch,
 						chainId,
 						typ,
-						selectedTimeout
+						selectedTimeoutDeltaDisplay
 					)
 
 					const [value, height, timestamp] = contractRespPerType
@@ -359,7 +360,7 @@ console.log(gasNetResult)
 		}
 	}
 
-	const readFromOracle = async (provider: any) => {
+	const readFromOracleDeltaDisplay = async (provider: any) => {
 		try {
 			const { ethers } = await loadEthers()
 			const ethersProvider = new ethers.BrowserProvider(provider, 'any')
@@ -369,7 +370,7 @@ console.log(gasNetResult)
 
 			const gasNetContract = new ethers.Contract(contractAddress, consumerV2.abi, signer)
 
-			return await handleV2OracleValues(gasNetContract)
+			return await handleV2OracleValuesDeltaDisplay(gasNetContract)
 		} catch (error) {
 			console.error('Error reading gas estimates from oracle:', error)
 			const revertErrorFromContract = (error as any)?.info?.error?.message || (error as any)?.reason
@@ -377,7 +378,7 @@ console.log(gasNetResult)
 		}
 	}
 
-	const readFromOracleDisplayData = async (provider: any) => {
+	const readFromOracle = async (provider: any) => {
 		try {
 			readFromTargetNetErrorMessage = null
 			await onboard.setChain({ chainId: selectedOracleNetwork.chainId })
@@ -424,7 +425,7 @@ console.log(gasNetResult)
 
 			isLoading = false
 			transactionHash = receipt.hash
-			await readFromOracleDisplayData(provider)
+			await readFromOracle(provider)
 		} catch (error) {
 			const revertErrorFromGasNetContract = (error as any)?.info?.error?.message
 			console.error('Publication error:', error)
