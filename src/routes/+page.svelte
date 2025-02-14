@@ -26,8 +26,7 @@
 	} from '$lib/utils/sorting'
 	import StepIndicator from '$lib/components/StepIndicator.svelte'
 	import { writable } from 'svelte/store'
-	import { interval } from 'rxjs'
-	import { switchMap, shareReplay } from 'rxjs/operators'
+	import { switchMap } from 'rxjs/operators'
 	import { onDestroy } from 'svelte'
 
 	const currentStep = writable(0)
@@ -56,6 +55,8 @@
 	let selectedTimeoutDeltaDisplay = 86400000
 	let v2ContractEnabled = true
 
+	let estimateDeltaData$: Subject<any> = new Subject()
+	let intervalId: ReturnType<typeof setInterval>
 	let estimateReadChains: ReadChain[] | undefined
 	let onboard: OnboardAPI
 
@@ -63,25 +64,12 @@
 	const gasNetEstimate = writable<any>(null)
 	const oracleReading = writable<any>(null)
 
-	// Initialize as a Subject to allow pushing new values
-	let estimateDeltaData$: Subject<any> = new Subject()
+	$: if (onboard && $wallets$?.length === 0) {
+		onboard.connectWallet()
+	}
 
 	$: if ($wallets$?.[0]?.provider && selectedEstimateNetwork && selectedOracleNetwork) {
 		getDeltaData()
-	}
-
-	async function getDeltaData() {
-		if (!$wallets$?.[0] || !selectedEstimateNetwork) return null
-
-		const [gasNetResult, oracleResults] = await Promise.all([
-			fetchGasEstimationFromGasNet(),
-			readFromOracleDeltaDisplay($wallets$?.[0]?.provider)
-		])
-		// Use the next method to push new data into the Subject
-		estimateDeltaData$.next({
-			gasNet: gasNetResult,
-			oracle: oracleResults
-		})
 	}
 
 	// Calculate time elapsed
@@ -107,9 +95,11 @@
 			const { base_fee_per_gas, pred_max_priority_fee_per_gas_p90 } = oracle
 			const { payloads } = gasNet
 
-			const gasNetBaseFeePerGas = hexToNumber(payloads.find((p) => p.typ === 107)?.value)
+			const gasNetBaseFeePerGas = hexToNumber(
+				payloads.find((p: { typ: number }) => p.typ === 107)?.value
+			)
 			const gasNetPredMaxPriorityFeePerGasP90 = hexToNumber(
-				payloads.find((p) => p.typ === 322)?.value
+				payloads.find((p: { typ: number }) => p.typ === 322)?.value
 			)
 
 			const gasNetGasPrice = gasNetBaseFeePerGas + gasNetPredMaxPriorityFeePerGasP90
@@ -125,24 +115,6 @@
 			}
 		})
 	)
-
-	// Setup subscriptions
-	const subscriptions = [
-		estimateDeltaData$.subscribe((result) => {
-			if (!result) return
-			gasNetEstimate.set(result.gasNet)
-			oracleReading.set(result.oracle)
-		}),
-		timeElapsed2$.subscribe()
-	]
-
-	// Cleanup subscriptions
-	onDestroy(() => {
-		subscriptions.forEach((sub) => sub.unsubscribe())
-    clearInterval(intervalId)
-
-	})
-	let intervalId: ReturnType<typeof setInterval>
 
 	onMount(async () => {
 		const [onboardPromise, estimateReadChainsPromise] = await Promise.all([
@@ -167,6 +139,36 @@
 		intervalId = setInterval(getDeltaData, 5000)
 	})
 
+	// Cleanup subscriptions
+	onDestroy(() => {
+		subscriptions.forEach((sub) => sub.unsubscribe())
+		clearInterval(intervalId)
+	})
+
+	// Setup subscriptions
+	const subscriptions = [
+		estimateDeltaData$.subscribe((result) => {
+			if (!result) return
+			gasNetEstimate.set(result.gasNet)
+			oracleReading.set(result.oracle)
+		}),
+		timeElapsed2$.subscribe()
+	]
+
+	async function getDeltaData() {
+		if (!$wallets$?.[0] || !selectedEstimateNetwork) return null
+
+		const [gasNetResult, oracleResults] = await Promise.all([
+			fetchGasEstimationFromGasNet(),
+			readFromOracleDeltaDisplay($wallets$?.[0]?.provider)
+		])
+		// Use the next method to push new data into the Subject
+		estimateDeltaData$.next({
+			gasNet: gasNetResult,
+			oracle: oracleResults
+		})
+	}
+
 	const getQueryParams = () => {
 		if (!estimateReadChains) return
 		const urlParams = new URLSearchParams(window.location.search)
@@ -183,18 +185,6 @@
 			Object.values(oracleChains).find((c) => c.chainId === Number(oracleNetwork)) ||
 			oracleChains[OracleNetworkKey.LINEA_SEPOLIA]
 	}
-
-	$: if (onboard && $wallets$?.length === 0) {
-		onboard.connectWallet()
-	}
-
-	// Create a reactive timer that updates when v2Timestamp changes
-	$: timeElapsed$ = v2Timestamp
-		? timer(0, 1000).pipe(
-				map(() => getTimeElapsed(v2Timestamp!)),
-				share()
-			)
-		: null
 
 	function getTimeElapsed(timestamp: number) {
 		if (!timestamp) return '> 1 Hour'
@@ -246,7 +236,6 @@
 
 			stepUp && currentStep.set(2)
 			v2ContractRawRes = rawTargetNetworkData
-			readGasPredictionsFromGasNet = paramsPayload
 			return paramsPayload
 		} catch (error) {
 			const revertErrorFromContract = (error as any)?.info?.error?.message
@@ -266,7 +255,6 @@
 			const arch = archSchemaMap[selectedEstimateNetwork.arch]
 			const { chainId, label } = selectedEstimateNetwork
 
-			let estTimestamp
 			const v2ValuesObject = await (
 				chainId === 1 ? mainnetV2ContractTypValues : evmV2ContractTypValues
 			).reduce(async (accPromise, typ) => {
@@ -283,8 +271,6 @@
 					v2NoDataFoundErrorMsg = `Estimate not available for ${label} at selected recency`
 				}
 
-				estTimestamp = timestamp
-
 				const resDataMap = evmTypeSchema?.[typ]
 				if (!resDataMap) {
 					console.error(
@@ -296,8 +282,6 @@
 				v2RawData[typ] = [value, height, timestamp]
 				v2Timestamp = Number(timestamp)
 				return {
-					'Estimate Chain ID': chainId,
-					'Last Publish': '',
 					...acc,
 					// Added for validation
 					[resDataMap.description]: (Number(value) / 1e9).toPrecision(4)
@@ -434,15 +418,13 @@
 		}
 	}
 
-	let readGasPredictionsFromGasNet: any
-
 	async function handleGasEstimation(provider: any, OracleNetworkId: number) {
 		publishErrorMessage = null
 		readFromGasNetErrorMessage = null
 		try {
 			currentStep.set(1)
 
-			await fetchGasEstimationFromGasNet()
+			await fetchGasEstimationFromGasNet(true)
 
 			await onboard.setChain({ chainId: OracleNetworkId })
 			await publishGasEstimation(provider)
@@ -497,7 +479,7 @@
 					<div class="space-y-4">
 						<!-- Last Updated Time -->
 						<div class="text-sm text-gray-500">
-							Last updated: {$timeElapsed2$}
+							Oracle Last updated: {$timeElapsed2$}
 						</div>
 
 						<!-- Gas Values -->
@@ -618,13 +600,6 @@
 											<span class="font-medium">{key}:</span>
 											{#if key.includes('Gas')}
 												<span>{typeof value === 'bigint' ? value.toString() : value} gwei</span>
-											{:else}
-												<div>
-													<span>{value}</span>
-													{#if timeElapsed$ && key === 'Last Publish'}
-														<span>{`${$timeElapsed$} ago`}</span>
-													{/if}
-												</div>
 											{/if}
 										</div>
 									{/each}
