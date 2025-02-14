@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
 	import { map, share } from 'rxjs/operators'
-	import { timer, type Observable } from 'rxjs'
+	import { timer, type Observable, of, from, Subject } from 'rxjs'
 	import type { OnboardAPI, WalletState } from '@web3-onboard/core'
 	import { OracleNetworkKey } from '$lib/@types/types'
 	import { getOnboard } from '$lib/services/web3-onboard'
@@ -11,7 +11,8 @@
 		archSchemaMap,
 		evmTypeSchema,
 		evmV2ContractTypValues,
-		mainnetV2ContractTypValues
+		mainnetV2ContractTypValues,
+		SUPPORTED_ORACLE_VERSIONS
 	} from '../constants'
 	import consumerV2 from '$lib/abis/consumerV2.json'
 	import gasnetV2 from '$lib/abis/gasnetV2.json'
@@ -25,6 +26,9 @@
 	} from '$lib/utils/sorting'
 	import StepIndicator from '$lib/components/StepIndicator.svelte'
 	import { writable } from 'svelte/store'
+	import { interval } from 'rxjs'
+	import { switchMap, shareReplay } from 'rxjs/operators'
+	import { onDestroy } from 'svelte'
 
 	const currentStep = writable(0)
 
@@ -53,6 +57,94 @@
 
 	let estimateReadChains: ReadChain[] | undefined
 	let onboard: OnboardAPI
+
+	// Stores for the latest values
+	const gasNetEstimate = writable<any>(null)
+	const oracleReading = writable<any>(null)
+
+	// Initialize as a Subject to allow pushing new values
+	let estimateDeltaData$: Subject<any> = new Subject()
+
+	$: if ($wallets$?.[0] && selectedEstimateNetwork && selectedOracleNetwork) {
+    console.log('here')
+		getDeltaData()
+	}
+
+	async function getDeltaData() {
+		if (!$wallets$?.[0] || !selectedEstimateNetwork) return null
+
+		const [gasNetResult, oracleResults] = await Promise.all([
+			fetchGasEstimationFromGasNet(),
+			readFromOracle($wallets$?.[0]?.provider)
+		])
+console.log(gasNetResult)
+		// Use the next method to push new data into the Subject
+		estimateDeltaData$.next({
+			gasNet: gasNetResult,
+			oracle: oracleResults
+		})
+	}
+
+	// Calculate time elapsed
+	const timeElapsed2$ = estimateDeltaData$.pipe(
+		switchMap((result) => {
+      console.log(result)
+			if (!result?.oracle?.timestamp) return of('')
+			const timestamp = Number(result.oracle.timestamp)
+			return timer(0, 1000).pipe(
+				map(() => {
+					return getTimeElapsed(timestamp)
+				}),
+				share()
+			)
+		})
+	)
+
+	// Calculate gas delta
+	const gasDelta$ = estimateDeltaData$.pipe(
+		map((result) => {
+			if (!result?.gasNet || !result?.oracle) return null
+			const { gasNet, oracle } = result
+			if (!gasNet || !oracle) return null
+			const { base_fee_per_gas, pred_max_priority_fee_per_gas_p90 } = oracle
+			const { payloads } = gasNet
+
+			const gasNetBaseFeePerGas = hexToNumber(payloads.find((p) => p.typ === 107)?.value)
+			const gasNetPredMaxPriorityFeePerGasP90 = hexToNumber(
+				payloads.find((p) => p.typ === 322)?.value
+			)
+
+			const gasNetGasPrice = gasNetBaseFeePerGas + gasNetPredMaxPriorityFeePerGasP90
+
+			const oracleGasPrice = Number(base_fee_per_gas) + Number(pred_max_priority_fee_per_gas_p90)
+
+			console.log(result)
+
+			return {
+				gasNetGasPrice: toGwei(gasNetGasPrice),
+				oracleGasPrice: toGwei(oracleGasPrice),
+				difference: toGwei(gasNetGasPrice - oracleGasPrice),
+				percentage:
+					((toGwei(gasNetGasPrice) - toGwei(oracleGasPrice)) / toGwei(oracleGasPrice)) * 100
+			}
+		})
+	)
+
+	// Setup subscriptions
+	const subscriptions = [
+		estimateDeltaData$.subscribe((result) => {
+			if (!result) return
+			gasNetEstimate.set(result.gasNet)
+			oracleReading.set(result.oracle)
+		}),
+		timeElapsed2$.subscribe()
+	]
+
+	// Cleanup subscriptions
+	onDestroy(() => {
+		subscriptions.forEach((sub) => sub.unsubscribe())
+	})
+
 	onMount(async () => {
 		const [onboardPromise, estimateReadChainsPromise] = await Promise.all([
 			getOnboard(),
@@ -80,7 +172,7 @@
 		const urlParams = new URLSearchParams(window.location.search)
 		const oracleNetwork = urlParams.get('oracleNetwork')
 		const estimateNetwork = urlParams.get('estimateNetwork')
-		// TODO: Is this still needed?
+		// TODO: Is this still needed - maybe for btc?
 		const estimateArch = urlParams.get('estimateArch') || 'evm'
 
 		selectedEstimateNetwork =
@@ -124,19 +216,37 @@
 		return ethersModule
 	}
 
-	async function fetchGasEstimationFromGasNet(chain: string) {
-		isLoading = true
-		transactionHash = null
+	const hexToNumber = (hex: string): number => {
+		return Number(BigInt(hex))
+	}
+
+	const toGwei = (value: number | bigint): number => Number(value) / 1e9
+
+	async function fetchGasEstimationFromGasNet(stepUp?: boolean) {
+		if (stepUp) {
+			isLoading = true
+			transactionHash = null
+		}
 		try {
 			const { ethers } = await loadEthers()
 
 			const rpcProvider = new ethers.JsonRpcProvider(gasNetwork.url)
 			const gasNetContract = new ethers.Contract(gasNetwork.contract, gasnetV2.abi, rpcProvider)
+			const chainId = selectedEstimateNetwork.chainId
 
 			const { arch } = selectedEstimateNetwork
-			const payload = await gasNetContract.getValues(archSchemaMap[arch], chain)
+			const rawTargetNetworkData = await gasNetContract.getValues(archSchemaMap[arch], chainId)
 
-			return { paramsPayload: parsePayload(payload), rawTargetNetworkData: payload }
+			const paramsPayload = parsePayload(rawTargetNetworkData)
+
+			if (!paramsPayload || !rawTargetNetworkData) {
+				throw new Error(`Failed to fetch gas estimation: ${paramsPayload}`)
+			}
+
+			stepUp && currentStep.set(2)
+			v2ContractRawRes = rawTargetNetworkData
+			readGasPredictionsFromGasNet = paramsPayload
+			return paramsPayload
 		} catch (error) {
 			const revertErrorFromContract = (error as any)?.info?.error?.message
 			console.error(error)
@@ -146,13 +256,14 @@
 		}
 	}
 
-	async function handleV2OracleValues(gasNetContract: Contract) {
+	async function handleV2OracleValuesDisplayData(gasNetContract: Contract) {
 		try {
 			v2RawData = {} as Record<number, [string, number, number]>
-			const arch = archSchemaMap[selectedEstimateNetwork.arch]
-			const { chainId, label } = selectedEstimateNetwork
 			v2NoDataFoundErrorMsg = null
 			v2Timestamp = null
+
+			const arch = archSchemaMap[selectedEstimateNetwork.arch]
+			const { chainId, label } = selectedEstimateNetwork
 
 			let estTimestamp
 			const v2ValuesObject = await (
@@ -204,7 +315,69 @@
 		}
 	}
 
+	async function handleV2OracleValues(gasNetContract: Contract) {
+		try {
+			const arch = archSchemaMap[selectedEstimateNetwork.arch]
+			const { chainId, label } = selectedEstimateNetwork
+
+			return await (chainId === 1 ? mainnetV2ContractTypValues : evmV2ContractTypValues).reduce(
+				async (accPromise, typ) => {
+					const acc = await accPromise
+					const contractRespPerType = await gasNetContract.getInTime(
+						arch,
+						chainId,
+						typ,
+						selectedTimeout
+					)
+
+					const [value, height, timestamp] = contractRespPerType
+					if (value === 0n && height === 0n && timestamp === 0n) {
+						v2NoDataFoundErrorMsg = `Estimate not available for ${label} at selected recency`
+					}
+
+					const resDataMap = evmTypeSchema?.[typ]
+					if (!resDataMap) {
+						console.error(
+							`No resDataMap found within the Type Map Schema for arch: ${arch}, chainId: ${chainId}, typ: ${typ}`
+						)
+						return acc
+					}
+
+					return {
+						timestamp: Number(timestamp),
+						...acc,
+						// Added for validation
+						[resDataMap.name]: Number(value)
+					}
+				},
+				Promise.resolve({})
+			)
+		} catch (error) {
+			console.error('Error Reading Gas Estimate from Oracle:', error)
+			const revertErrorFromContract = (error as any)?.info?.error?.message || (error as any)?.reason
+			readFromTargetNetErrorMessage = revertErrorFromContract || (error as string)
+		}
+	}
+
 	const readFromOracle = async (provider: any) => {
+		try {
+			const { ethers } = await loadEthers()
+			const ethersProvider = new ethers.BrowserProvider(provider, 'any')
+			const signer = await ethersProvider.getSigner()
+			// TODO: make this reactive if we support more oracle versions in this dapp
+			const contractAddress = selectedOracleNetwork.contractByType[SUPPORTED_ORACLE_VERSIONS[0]]
+
+			const gasNetContract = new ethers.Contract(contractAddress, consumerV2.abi, signer)
+
+			return await handleV2OracleValues(gasNetContract)
+		} catch (error) {
+			console.error('Error reading gas estimates from oracle:', error)
+			const revertErrorFromContract = (error as any)?.info?.error?.message || (error as any)?.reason
+			readFromTargetNetErrorMessage = revertErrorFromContract || (error as string)
+		}
+	}
+
+	const readFromOracleDisplayData = async (provider: any) => {
 		try {
 			readFromTargetNetErrorMessage = null
 			await onboard.setChain({ chainId: selectedOracleNetwork.chainId })
@@ -212,7 +385,8 @@
 			const { ethers } = await loadEthers()
 			const ethersProvider = new ethers.BrowserProvider(provider, 'any')
 			const signer = await ethersProvider.getSigner()
-			const contractAddress = selectedOracleNetwork.contract
+			// TODO: make this reactive if we support more oracle versions in this dapp
+			const contractAddress = selectedOracleNetwork.contractByType[SUPPORTED_ORACLE_VERSIONS[0]]
 
 			const gasNetContract = new ethers.Contract(contractAddress, consumerV2.abi, signer)
 
@@ -223,7 +397,7 @@
 			})
 
 			v2PublishedGasData = null
-			handleV2OracleValues(gasNetContract)
+			handleV2OracleValuesDisplayData(gasNetContract)
 		} catch (error) {
 			v2PublishedGasData = null
 			console.error('Gas data read published data error:', error)
@@ -238,7 +412,8 @@
 			const { ethers } = await loadEthers()
 			const ethersProvider = new ethers.BrowserProvider(provider, 'any')
 			const signer = await ethersProvider.getSigner()
-			const contractAddress = selectedOracleNetwork.contract
+			// TODO: make this reactive if we support more oracle versions in this dapp
+			const contractAddress = selectedOracleNetwork.contractByType[SUPPORTED_ORACLE_VERSIONS[0]]
 
 			const consumerContract = new ethers.Contract(contractAddress, consumerV2.abi, signer)
 
@@ -249,7 +424,7 @@
 
 			isLoading = false
 			transactionHash = receipt.hash
-			readFromOracle(provider)
+			await readFromOracleDisplayData(provider)
 		} catch (error) {
 			const revertErrorFromGasNetContract = (error as any)?.info?.error?.message
 			console.error('Publication error:', error)
@@ -260,29 +435,13 @@
 
 	let readGasPredictionsFromGasNet: any
 
-	async function handleGasEstimation(
-		provider: any,
-		TargetNetworkId: number,
-		OracleNetworkId: number
-	) {
+	async function handleGasEstimation(provider: any, OracleNetworkId: number) {
 		publishErrorMessage = null
 		readFromGasNetErrorMessage = null
 		try {
 			currentStep.set(1)
 
-			const gasNetData = await fetchGasEstimationFromGasNet(TargetNetworkId.toString())
-			if (!gasNetData) {
-				throw new Error('No data received from GasNet')
-			}
-
-			const { paramsPayload, rawTargetNetworkData } = gasNetData as any
-			readGasPredictionsFromGasNet = paramsPayload
-			currentStep.set(2)
-			if (!paramsPayload || !rawTargetNetworkData) {
-				throw new Error(`Failed to fetch gas estimation: ${gasNetData?.paramsPayload}`)
-			}
-
-			v2ContractRawRes = rawTargetNetworkData
+			await fetchGasEstimationFromGasNet()
 
 			await onboard.setChain({ chainId: OracleNetworkId })
 			await publishGasEstimation(provider)
@@ -333,6 +492,37 @@
 		{#if $wallets$}
 			{#each $wallets$ as { provider }}
 				<div class="flex flex-col gap-2 sm:gap-4">
+					<!-- Display the results -->
+					<div class="space-y-4">
+						<!-- Last Updated Time -->
+						<div class="text-sm text-gray-500">
+							Last updated: {$timeElapsed2$}
+						</div>
+
+						<!-- Gas Values -->
+						{#if $gasNetEstimate && $oracleReading}
+							<div class="space-y-2">
+								<!-- Delta Display -->
+								{#if $gasDelta$}
+									<div class="flex justify-between">
+										<span>GasNet Estimate:</span>
+										<span>{$gasDelta$.gasNetGasPrice} gwei</span>
+									</div>
+									<div class="flex justify-between">
+										<span>Oracle Reading:</span>
+										<span>{$gasDelta$.oracleGasPrice} gwei</span>
+									</div>
+									<div class="flex justify-between font-medium">
+										<span>Difference:</span>
+										<span class={$gasDelta$.difference > 0 ? 'text-green-500' : 'text-red-500'}>
+											{$gasDelta$.difference.toFixed(4)} gwei ({$gasDelta$.percentage.toFixed(2)}%)
+										</span>
+									</div>
+								{/if}
+							</div>
+						{/if}
+					</div>
+
 					<div class="flex items-center justify-between gap-5">
 						<div class="flex w-full flex-col gap-1">
 							<label for="read-chain" class="ml-1 text-xs font-medium text-brandBackground/80"
@@ -367,12 +557,7 @@
 						class="w-full rounded-lg bg-brandAction px-6 py-3 font-medium text-brandBackground transition-colors hover:bg-brandAction/80 disabled:cursor-not-allowed disabled:opacity-50"
 						disabled={isLoading}
 						class:disabled={isLoading}
-						on:click={() =>
-							handleGasEstimation(
-								provider,
-								selectedEstimateNetwork.chainId,
-								selectedOracleNetwork.chainId
-							)}
+						on:click={() => handleGasEstimation(provider, selectedOracleNetwork.chainId)}
 					>
 						Write {selectedEstimateNetwork.label} Estimations to {selectedOracleNetwork.label}
 					</button>

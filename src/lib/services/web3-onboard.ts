@@ -17,9 +17,6 @@ export async function getOnboard() {
 		const metamask = metamaskModule({
 			options: {
 				extensionOnly: false,
-				i18nOptions: {
-					enabled: true
-				},
 				dappMetadata: {
 					name: 'Gas Network'
 				}

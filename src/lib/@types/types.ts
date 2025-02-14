@@ -30,5 +30,5 @@ export type OracleChain = {
 	label: string
 	rpcUrl: string
 	blockExplorerUrl: string
-	contract: string
+	contractByType: Record<number, string>
 }
