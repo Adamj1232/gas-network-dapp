@@ -4,8 +4,8 @@ export const BN_CHAINS_ENDPOINT = 'https://api.blocknative.com/chains'
 export const BN_ORACLE_CHAINS_ENDPOINT = 'https://api.blocknative.com/oracles'
 
 export const gasNetwork = {
-	url: 'https://test.devnet.gas.network',
-	contract: '0x106A0e60fb930b96BDF9da93997747601435e1d9'
+	url: 'https://rpc.gas.network',
+	contract: '0x4245Cb7c690B650a38E680C9BcfB7814D42BfD32'
 }
 
 export const evmV2ContractTypValues = [107, 322]
