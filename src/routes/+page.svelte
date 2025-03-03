@@ -20,6 +20,7 @@
 	import { switchMap } from 'rxjs/operators'
 	import { onDestroy } from 'svelte'
 	import { getEstimateChainById, getOracleChainById, getTypValuesByArch } from '$lib/utils/chains'
+	import gasNetIcon from '$lib/svg/gas-network-icon.svg?raw'
 
 	const currentStep = writable(0)
 
@@ -419,7 +420,12 @@
 		class="mx-auto max-w-3xl rounded-xl border border-gray-800 bg-brandForeground p-6 shadow-2xl sm:p-8"
 	>
 		<div class="relative flex flex-col items-center justify-center">
-			<h1 class="mb-8 text-center text-5xl font-normal">Gas Network</h1>
+			<div>
+				<div class="flex w-64 items-center">
+					{@html gasNetIcon}
+				</div>
+				<h1 class="mb-8 text-center text-5xl font-normal">Gas Network</h1>
+			</div>
 			<span
 				class="absolute left-0 top-0 rounded-full border border-brandAction px-4 py-2 text-sm font-medium text-brandAction hover:bg-brandAction/10"
 			>
