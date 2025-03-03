@@ -4,12 +4,7 @@
 	import { timer, type Observable, of, Subject } from 'rxjs'
 	import type { OnboardAPI, WalletState } from '@web3-onboard/core'
 	import { getOnboard } from '$lib/services/web3-onboard'
-	import {
-		gasNetwork,
-		archSchemaMap,
-		evmTypeSchema,
-		SUPPORTED_ORACLE_VERSIONS,
-	} from '../constants'
+	import { gasNetwork, archSchemaMap, evmTypeSchema, SUPPORTED_ORACLE_VERSIONS } from '../constants'
 	import consumerV2 from '$lib/abis/consumerV2.json'
 	import gasnetV2 from '$lib/abis/gasnetV2.json'
 	import type { OracleChain, ReadChain } from '$lib/@types/types'
@@ -81,8 +76,8 @@
 			if (!result?.gasNet || !result?.oracle) return null
 			const { gasNet, oracle } = result
 			if (!gasNet || !oracle) return null
-      
-      // TODO: Handle for BTC
+
+			// TODO: Handle for BTC
 			const { base_fee_per_gas, pred_max_priority_fee_per_gas_p90 } = oracle
 			const { payloads } = gasNet
 
@@ -100,9 +95,12 @@
 			return {
 				gasNetGasPrice: toGwei(gasNetGasPrice),
 				oracleGasPrice: toGwei(oracleGasPrice),
-				difference: toGwei(gasNetGasPrice - oracleGasPrice),
+				difference:
+					gasNetGasPrice && oracleGasPrice ? toGwei(gasNetGasPrice - oracleGasPrice) : undefined,
 				percentage:
-					((toGwei(gasNetGasPrice) - toGwei(oracleGasPrice)) / toGwei(oracleGasPrice)) * 100
+					gasNetGasPrice && oracleGasPrice
+						? ((toGwei(gasNetGasPrice) - toGwei(oracleGasPrice)) / toGwei(oracleGasPrice)) * 100
+						: undefined
 			}
 		})
 	)
@@ -243,7 +241,7 @@
 			if (!typesByArch.length) {
 				throw new Error(`No types found for arch: ${arch}, chainId: ${chainId}`)
 			}
-      console.log(typesByArch)
+			console.log(typesByArch)
 			const v2ValuesObject = await typesByArch.reduce(async (accPromise, typ) => {
 				const acc = await accPromise
 				const contractRespPerType = await gasNetContract.get(arch, chainId, typ)
@@ -252,7 +250,7 @@
 				if (value === 0n && height === 0n && timestamp === 0n) {
 					v2NoDataFoundErrorMsg = `Estimate not available for ${label} at selected recency`
 				}
-        console.log(value)
+				console.log(value)
 
 				const resDataMap = evmTypeSchema?.[typ]
 				if (!resDataMap) {
@@ -468,14 +466,22 @@
 									</div>
 									<div class="flex justify-between">
 										<span>Oracle Reading:</span>
-										<span>{$gasDelta$.oracleGasPrice} gwei</span>
+										{#if $gasDelta$.oracleGasPrice}
+											<span>{$gasDelta$.oracleGasPrice} gwei</span>
+										{:else}
+											<span>Not Yet Published For This Network</span>
+										{/if}
 									</div>
-									<div class="flex justify-between font-medium">
-										<span>Difference:</span>
-										<span class={$gasDelta$.difference > 0 ? 'text-green-500' : 'text-red-500'}>
-											{$gasDelta$.difference.toFixed(4)} gwei ({$gasDelta$.percentage.toFixed(2)}%)
-										</span>
-									</div>
+									{#if $gasDelta$.difference && $gasDelta$.percentage}
+										<div class="flex justify-between font-medium">
+											<span>Difference:</span>
+											<span class={$gasDelta$.difference > 0 ? 'text-green-500' : 'text-red-500'}>
+												{$gasDelta$.difference.toFixed(4)} gwei ({$gasDelta$.percentage.toFixed(
+													2
+												)}%)
+											</span>
+										</div>
+									{/if}
 								{/if}
 							</div>
 						{/if}
@@ -569,16 +575,16 @@
 
 								<div class="mx-2 my-4 flex w-full flex-col gap-2 pb-3 text-xs sm:text-sm">
 									{#each Object.entries(v2PublishedGasData) as [key, value]}
-                  {#if value}
-										<div class="flex justify-between gap-4 py-1">
-											<span class="font-medium">{key}:</span>
-											{#if key.includes('Fee') && selectedEstimateNetwork.arch === 'evm'}
-												<span>{typeof value === 'bigint' ? value.toString() : value} gwei</span>
-											{:else if key.includes('Fee') && selectedEstimateNetwork.arch === 'utxo'}
-												<span>{typeof value === 'bigint' ? value.toString() : value} sats</span>
-											{/if}
-										</div>
-                  {/if}
+										{#if value}
+											<div class="flex justify-between gap-4 py-1">
+												<span class="font-medium">{key}:</span>
+												{#if key.includes('Fee') && selectedEstimateNetwork.arch === 'evm'}
+													<span>{typeof value === 'bigint' ? value.toString() : value} gwei</span>
+												{:else if key.includes('Fee') && selectedEstimateNetwork.arch === 'utxo'}
+													<span>{typeof value === 'bigint' ? value.toString() : value} sats</span>
+												{/if}
+											</div>
+										{/if}
 									{/each}
 								</div>
 							{/if}
