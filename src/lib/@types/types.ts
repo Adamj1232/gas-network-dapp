@@ -11,14 +11,6 @@ export interface PayloadValues {
 	payloads: Array<VPayload>
 }
 
-export enum OracleNetworkKey {
-	SEPOLIA = 'sepolia',
-	OP_SEPOLIA = 'opSepolia',
-	BASE_SEPOLIA = 'baseSepolia',
-	LINEA_SEPOLIA = 'lineaSepolia',
-	LINEA_MAINNET = 'linea'
-}
-
 export interface ReadChain {
 	chainId: number
 	label: string
@@ -30,5 +22,8 @@ export type OracleChain = {
 	label: string
 	rpcUrl: string
 	blockExplorerUrl: string
-	contractByType: Record<number, string>
+	addressByVersion: Record<number, string>
+	testnet?: boolean
+	icon?: string
+  arch?: string
 }

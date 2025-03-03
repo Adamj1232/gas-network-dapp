@@ -1,4 +1,7 @@
-import { type OracleChain, OracleNetworkKey } from '$lib/@types/types'
+import { type OracleChain } from '$lib/@types/types'
+
+export const BN_CHAINS_ENDPOINT = 'https://api.blocknative.com/chains'
+export const BN_ORACLE_CHAINS_ENDPOINT = 'https://api.blocknative.com/oracles'
 
 export const gasNetwork = {
 	url: 'https://test.devnet.gas.network',
@@ -8,50 +11,21 @@ export const gasNetwork = {
 export const evmV2ContractTypValues = [107, 322]
 export const mainnetV2ContractTypValues = [107, 322]
 
-export const SUPPORTED_ORACLE_VERSIONS = [2]
+export const SUPPORTED_ORACLE_VERSIONS = 2
 
-export const DEFAULT_ORACLE_NETWORK = OracleNetworkKey.SEPOLIA
-
-export const oracleChains: Record<OracleNetworkKey, OracleChain> = {
-	[OracleNetworkKey.SEPOLIA]: {
-		chainId: 11155111,
-		label: 'Ethereum Sepolia',
-		rpcUrl: 'https://endpoints.omniatech.io/v1/eth/sepolia/public',
-		blockExplorerUrl: 'https://sepolia.etherscan.io',
-		contractByType: { 2: '0xCc936bE977BeDb5140C5584d8B6043C9068622A6' }
-	},
-	[OracleNetworkKey.OP_SEPOLIA]: {
-		chainId: 11155420,
-		label: 'Optimism Sepolia',
-		rpcUrl: 'https://sepolia.optimism.io',
-		blockExplorerUrl: 'https://sepolia-optimism.etherscan.io',
-		contractByType: { 2: '0x20A5DCE3646BD975edEE3082319bd0dB64A0e0B9' }
-	},
-	[OracleNetworkKey.BASE_SEPOLIA]: {
-		chainId: 84532,
-		label: 'Base Sepolia',
-		rpcUrl: 'https://sepolia.base.org',
-		blockExplorerUrl: 'https://sepolia.basescan.org',
-		contractByType: { 2: '0xD87f5Ea40C592DfFAe5B87922E1cdA2bb44CB67F' }
-	},
-	[OracleNetworkKey.LINEA_SEPOLIA]: {
-		chainId: 59141,
-		label: 'Linea Sepolia',
-		rpcUrl: 'https://linea-sepolia-rpc.publicnode.com',
-		contractByType: { 2: '0xb690C4CbDE4747FD614477Ab24c7630C5aAa6Ec5' },
-		blockExplorerUrl: 'https://sepolia.lineascan.build'
-	},
-	[OracleNetworkKey.LINEA_MAINNET]: {
-		chainId: 59144,
-		label: 'Linea Mainnet',
-		rpcUrl: 'https://rpc.linea.build',
-		contractByType: { 2: '0x2c84370DaddBcD67d729689671A9Fe63DF39Cf13' },
-		blockExplorerUrl: 'https://lineascan.build'
-	}
+export const defaultOracleMainnetChain: OracleChain = {
+  chainId: 59144,
+	label: 'Linea',
+	rpcUrl: 'https://rpc.linea.build',
+	addressByVersion: { 2: '0x2c84370DaddBcD67d729689671A9Fe63DF39Cf13' },
+	blockExplorerUrl: 'https://lineascan.build',
+	testnet: false
 }
+export const DEFAULT_ORACLE_CHAIN_ID = defaultOracleMainnetChain.chainId
+
 
 export const archSchemaMap: Record<string, number> = {
-	btc: 1,
+	utxo: 1,
 	evm: 2,
 	unsupported: 0
 }

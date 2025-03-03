@@ -1,27 +1,26 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
 	import { map, share } from 'rxjs/operators'
-	import { timer, type Observable, of, from, Subject } from 'rxjs'
+	import { timer, type Observable, of, Subject } from 'rxjs'
 	import type { OnboardAPI, WalletState } from '@web3-onboard/core'
-	import { OracleNetworkKey } from '$lib/@types/types'
 	import { getOnboard } from '$lib/services/web3-onboard'
 	import {
-		oracleChains,
 		gasNetwork,
 		archSchemaMap,
 		evmTypeSchema,
 		evmV2ContractTypValues,
 		mainnetV2ContractTypValues,
-		SUPPORTED_ORACLE_VERSIONS
+		SUPPORTED_ORACLE_VERSIONS,
+		DEFAULT_ORACLE_CHAIN_ID
 	} from '../constants'
 	import consumerV2 from '$lib/abis/consumerV2.json'
 	import gasnetV2 from '$lib/abis/gasnetV2.json'
 	import type { OracleChain, ReadChain } from '$lib/@types/types'
 	import type { Contract } from 'ethers'
-	import { fetchChains } from '$lib/services/api'
+	import { fetchChains, fetchOracleChains } from '$lib/services/api'
 	import { parsePayload } from '$lib/utils/payload'
 	import {
-		orderAndFilterChainsAlphabetically,
+		orderAndFilterOraclesAlphabetically,
 		orderAndFilterReadChainsAlphabetically
 	} from '$lib/utils/sorting'
 	import StepIndicator from '$lib/components/StepIndicator.svelte'
@@ -58,6 +57,7 @@
 	let estimateDeltaData$: Subject<any> = new Subject()
 	let intervalId: ReturnType<typeof setInterval>
 	let estimateReadChains: ReadChain[] | undefined
+	let oracleChains: OracleChain[] | undefined
 	let onboard: OnboardAPI
 
 	// Stores for the latest values
@@ -117,18 +117,19 @@
 	)
 
 	onMount(async () => {
-		const [onboardPromise, estimateReadChainsPromise] = await Promise.all([
+		const [onboardPromise, estimateReadChainsPromise, oracleChainsPromise] = await Promise.all([
 			getOnboard(),
-			fetchChains() as Promise<ReadChain[]>
+			fetchChains() as Promise<ReadChain[]>,
+			fetchOracleChains() as Promise<OracleChain[]>
 		])
-		if (!estimateReadChainsPromise) {
+		if (!estimateReadChainsPromise || !oracleChainsPromise) {
 			throw new Error('Failed to fetch chains')
 		}
 
 		onboard = onboardPromise
 		wallets$ = onboard.state.select('wallets').pipe(share())
 		estimateReadChains = estimateReadChainsPromise
-
+		oracleChains = oracleChainsPromise
 		const savedSetting = localStorage.getItem('v2ContractEnabled')
 		if (savedSetting !== null) {
 			v2ContractEnabled = savedSetting === 'true'
@@ -170,7 +171,7 @@
 	}
 
 	const getQueryParams = () => {
-		if (!estimateReadChains) return
+		if (!estimateReadChains || !oracleChains) return
 		const urlParams = new URLSearchParams(window.location.search)
 		const oracleNetwork = urlParams.get('oracleNetwork')
 		const estimateNetwork = urlParams.get('estimateNetwork')
@@ -182,8 +183,8 @@
 				(c) => c.chainId === Number(estimateNetwork) && c.arch === estimateArch
 			) || estimateReadChains.find((c) => c.chainId === 1)!
 		selectedOracleNetwork =
-			Object.values(oracleChains).find((c) => c.chainId === Number(oracleNetwork)) ||
-			oracleChains[OracleNetworkKey.LINEA_SEPOLIA]
+			oracleChains.find((c) => c.chainId === Number(oracleNetwork)) ||
+			oracleChains.find((c) => c.chainId === DEFAULT_ORACLE_CHAIN_ID)!
 	}
 
 	function getTimeElapsed(timestamp: number) {
@@ -226,6 +227,7 @@
 			const chainId = selectedEstimateNetwork.chainId
 
 			const { arch } = selectedEstimateNetwork
+			console.log(archSchemaMap, arch, archSchemaMap[arch])
 			const rawTargetNetworkData = await gasNetContract.getValues(archSchemaMap[arch], chainId)
 
 			const paramsPayload = parsePayload(rawTargetNetworkData)
@@ -308,11 +310,14 @@
 			return await (chainId === 1 ? mainnetV2ContractTypValues : evmV2ContractTypValues).reduce(
 				async (accPromise, typ) => {
 					const acc = await accPromise
-					const contractRespPerType = await gasNetContract.getInTime(
-						arch,
+          console.log(						arch,
 						chainId,
 						typ,
-						selectedTimeoutDeltaDisplay
+						selectedTimeoutDeltaDisplay)
+					const contractRespPerType = await gasNetContract.get(
+						arch,
+						chainId,
+						typ
 					)
 
 					const [value, height, timestamp] = contractRespPerType
@@ -350,7 +355,7 @@
 			const ethersProvider = new ethers.BrowserProvider(provider, 'any')
 			const signer = await ethersProvider.getSigner()
 			// TODO: make this reactive if we support more oracle versions in this dapp
-			const contractAddress = selectedOracleNetwork.contractByType[SUPPORTED_ORACLE_VERSIONS[0]]
+			const contractAddress = selectedOracleNetwork.addressByVersion[SUPPORTED_ORACLE_VERSIONS]
 
 			const gasNetContract = new ethers.Contract(contractAddress, consumerV2.abi, signer)
 
@@ -371,7 +376,7 @@
 			const ethersProvider = new ethers.BrowserProvider(provider, 'any')
 			const signer = await ethersProvider.getSigner()
 			// TODO: make this reactive if we support more oracle versions in this dapp
-			const contractAddress = selectedOracleNetwork.contractByType[SUPPORTED_ORACLE_VERSIONS[0]]
+			const contractAddress = selectedOracleNetwork.addressByVersion[SUPPORTED_ORACLE_VERSIONS]
 
 			const gasNetContract = new ethers.Contract(contractAddress, consumerV2.abi, signer)
 
@@ -398,7 +403,7 @@
 			const ethersProvider = new ethers.BrowserProvider(provider, 'any')
 			const signer = await ethersProvider.getSigner()
 			// TODO: make this reactive if we support more oracle versions in this dapp
-			const contractAddress = selectedOracleNetwork.contractByType[SUPPORTED_ORACLE_VERSIONS[0]]
+			const contractAddress = selectedOracleNetwork.addressByVersion[SUPPORTED_ORACLE_VERSIONS]
 
 			const consumerContract = new ethers.Contract(contractAddress, consumerV2.abi, signer)
 
@@ -439,23 +444,15 @@
 	}
 </script>
 
-<main
-	class="h-full min-h-[100vh] w-full bg-brandBackground p-4 font-sans text-brandBackground sm:p-6"
->
-	<div
-		class="mx-auto max-w-3xl rounded-xl border border-brandAction/50 bg-brandForeground p-6 shadow-md sm:p-8"
-	>
+<main class="h-full min-h-[100vh] w-full bg-black p-4 font-sans text-white sm:p-6">
+	<div class="mx-auto max-w-3xl rounded-xl border border-gray-800 bg-brandForeground p-6 shadow-2xl sm:p-8">
 		<div class="relative flex flex-col items-center justify-center">
-			<h1 class="mb-8 text-center text-3xl">Gas Network</h1>
-			<span
-				class="absolute left-0 top-0 rounded-md border border-brandBackground p-2 text-sm font-medium text-brandBackground/80"
-			>
+			<h1 class="mb-8 text-center text-5xl font-normal">Gas Network</h1>
+			<span class="absolute left-0 top-0 rounded-full border border-brandAction px-4 py-2 text-sm font-medium text-brandAction hover:bg-brandAction/10">
 				<a href="https://gasnetwork.notion.site/" target="_blank">Documentation</a>
 			</span>
 			{#if $wallets$?.[0]?.accounts?.[0]?.address}
-				<span
-					class="absolute right-0 top-0 rounded-md border border-brandBackground p-2 text-sm font-medium text-brandBackground/80"
-				>
+				<span class="absolute right-0 top-0 rounded-full border border-gray-400 px-4 py-2 text-sm font-medium text-white">
 					{formatAddress($wallets$?.[0]?.accounts?.[0]?.address)}
 				</span>
 			{/if}
@@ -463,10 +460,8 @@
 
 		{#if onboard?.connectWallet && !$wallets$?.length}
 			<div class="flex flex-col gap-2">
-				<button
-					class="w-full rounded-lg bg-brandAction px-6 py-3 font-medium text-brandBackground transition-colors hover:bg-brandAction/80"
-					on:click={() => onboard.connectWallet()}
-				>
+				<button class="w-full rounded-full bg-brandAction px-8 py-4 text-lg font-medium text-black transition-all hover:bg-brandAction/70"
+					on:click={() => onboard.connectWallet()}>
 					Connect Wallet
 				</button>
 			</div>
@@ -508,13 +503,11 @@
 
 					<div class="flex items-center justify-between gap-5">
 						<div class="flex w-full flex-col gap-1">
-							<label for="read-chain" class="ml-1 text-xs font-medium text-brandBackground/80"
-								>Estimates For</label
-							>
+							<label for="read-chain" class="ml-1 text-xs font-medium text-white">Estimates For</label>
 							<select
 								id="read-chain"
 								bind:value={selectedEstimateNetwork}
-								class="w-full cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-800 outline-none hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+								class="w-full cursor-pointer rounded-lg border px-3 py-3 text-sm text-gray-800 hover:border-brandAction focus:border-brandAction focus:ring-2 focus:ring-brandAction/10"
 							>
 								{#each orderAndFilterReadChainsAlphabetically(estimateReadChains!) as chain}
 									<option value={chain}>{chain.label}</option>
@@ -522,22 +515,20 @@
 							</select>
 						</div>
 						<div class="flex w-full flex-col gap-1">
-							<label for="write-chain" class="ml-1 text-xs font-medium text-brandBackground/80"
-								>Write To</label
-							>
+							<label for="write-chain" class="ml-1 text-xs font-medium text-white">Write To</label>
 							<select
 								id="write-chain"
 								bind:value={selectedOracleNetwork}
-								class="w-full cursor-pointer rounded-lg border border-gray-200 bg-white px-3 py-3 text-sm text-gray-800 outline-none hover:border-blue-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+								class="w-full cursor-pointer rounded-lg border px-3 py-3 text-sm text-gray-800 hover:border-brandAction focus:border-brandAction focus:ring-2 focus:ring-brandAction/10"
 							>
-								{#each orderAndFilterChainsAlphabetically(oracleChains) as [_, chain]}
+								{#each orderAndFilterOraclesAlphabetically(oracleChains ?? []) as chain}
 									<option value={chain}>{chain.label}</option>
 								{/each}
 							</select>
 						</div>
 					</div>
 					<button
-						class="w-full rounded-lg bg-brandAction px-6 py-3 font-medium text-brandBackground transition-colors hover:bg-brandAction/80 disabled:cursor-not-allowed disabled:opacity-50"
+						class="w-full rounded-full bg-brandAction px-6 py-3 font-medium text-black transition-all hover:bg-brandAction/70"
 						disabled={isLoading}
 						class:disabled={isLoading}
 						on:click={() => handleGasEstimation(provider, selectedOracleNetwork.chainId)}
@@ -549,12 +540,10 @@
 					{/if}
 
 					{#if isLoading}
-						<div class="my-4 flex flex-col items-center gap-2">
-							<div
-								class="h-12 w-12 animate-spin rounded-full border-4 border-brandBackground/20 border-t-brandBackground"
-							></div>
-							<p class="text-center sm:text-left">
-								Awaiting Wallet Confirmation to Publish Gas Predictions
+						<div class="my-2 flex flex-col items-center gap-2">
+							<div class="h-14 w-14 animate-spin rounded-full border-4 border-brandAccent/30 border-t-brandAccent"></div>
+							<p class="text-center text-brandAccent/90 sm:text-left">
+								Please Check Connected Browser Wallet for Progress
 							</p>
 						</div>
 					{/if}
@@ -621,10 +610,62 @@
 
 <style>
 	:root {
-		--w3o-background-color: #fce9cf;
-		--w3o-text-color: #280019;
-		--w3o-border-color: hsl(35 88% 70% / 1);
-		--w3o-action-color: #fb3d00;
-		--w3o-border-radius: 1rem;
+		--w3o-background-color: #1c1c1c;
+		--w3o-text-color: #ffffff;
+		--w3o-border-color: #333333;
+		--w3o-action-color: #59fbf5;
+		--w3o-border-radius: 0.75rem;
+    --onboard-connect-sidebar-progress-background: #575757;
+	}
+
+	/* Update select styling */
+	select {
+		@apply border-gray-700 bg-brandForeground text-white;
+		background-position: right 4px center; /* Move chevron 4px from the right */
+	}
+
+	/* If the above doesn't work, this is a more specific approach */
+	select::-ms-expand {
+		margin-right: 4px;
+	}
+
+	/* For webkit browsers */
+	select {
+		-webkit-appearance: none;
+		background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%23ffffff' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+		background-position: right 4px center;
+		background-repeat: no-repeat;
+		background-size: 1.5em;
+		padding-right: 2.5em;
+	}
+
+	/* Update pre/code blocks */
+	pre {
+		@apply border border-gray-700 bg-brandForeground text-gray-300;
+	}
+
+	/* Add subtle glow effect to main action buttons */
+	button {
+		box-shadow: 0 0 20px rgba(0, 248, 226, 0.1);
+	}
+
+	/* Improve scrollbar styling for the content area */
+	:global(.overflow-x-auto::-webkit-scrollbar) {
+		width: 8px;
+		height: 8px;
+	}
+
+	:global(.overflow-x-auto::-webkit-scrollbar-track) {
+		background: #1c1c1c;
+		border-radius: 4px;
+	}
+
+	:global(.overflow-x-auto::-webkit-scrollbar-thumb) {
+		background: #333;
+		border-radius: 4px;
+	}
+
+	:global(.overflow-x-auto::-webkit-scrollbar-thumb:hover) {
+		background: #444;
 	}
 </style>
