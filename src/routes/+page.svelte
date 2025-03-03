@@ -8,10 +8,7 @@
 		gasNetwork,
 		archSchemaMap,
 		evmTypeSchema,
-		evmV2ContractTypValues,
-		mainnetV2ContractTypValues,
 		SUPPORTED_ORACLE_VERSIONS,
-		DEFAULT_ORACLE_CHAIN_ID
 	} from '../constants'
 	import consumerV2 from '$lib/abis/consumerV2.json'
 	import gasnetV2 from '$lib/abis/gasnetV2.json'
@@ -27,14 +24,11 @@
 	import { writable } from 'svelte/store'
 	import { switchMap } from 'rxjs/operators'
 	import { onDestroy } from 'svelte'
+	import { getEstimateChainById, getOracleChainById, getTypValuesByArch } from '$lib/utils/chains'
 
 	const currentStep = writable(0)
 
 	let v2PublishedGasData: Record<string, number | bigint> | null = null
-	let v2RawData: Record<number, [string, number, number]> = {} as Record<
-		number,
-		[string, number, number]
-	>
 
 	let v2ContractRawRes: string | null = null
 	let transactionHash: string | null = null
@@ -53,7 +47,7 @@
 
 	let estimateDeltaData$: Subject<any> = new Subject()
 	let intervalId: ReturnType<typeof setInterval>
-	let estimateReadChains: ReadChain[] | undefined
+	let estimateChains: ReadChain[] | undefined
 	let oracleChains: OracleChain[] | undefined
 	let onboard: OnboardAPI
 
@@ -89,6 +83,8 @@
 			if (!result?.gasNet || !result?.oracle) return null
 			const { gasNet, oracle } = result
 			if (!gasNet || !oracle) return null
+			console.log('oracle', oracle)
+      // TODO: Handle for BTC
 			const { base_fee_per_gas, pred_max_priority_fee_per_gas_p90 } = oracle
 			const { payloads } = gasNet
 
@@ -125,7 +121,7 @@
 
 		onboard = onboardPromise
 		wallets$ = onboard.state.select('wallets').pipe(share())
-		estimateReadChains = estimateReadChainsPromise
+		estimateChains = estimateReadChainsPromise
 		oracleChains = oracleChainsPromise
 
 		// OnMount get the queryParams from the URL and set the selectedEstimateNetwork and selectedOracleNetwork
@@ -164,20 +160,18 @@
 	}
 
 	const getQueryParams = () => {
-		if (!estimateReadChains || !oracleChains) return
+		if (!estimateChains?.length || !oracleChains?.length) return
 		const urlParams = new URLSearchParams(window.location.search)
 		const oracleNetwork = urlParams.get('oracleNetwork')
 		const estimateNetwork = urlParams.get('estimateNetwork')
-		// TODO: Is this still needed - maybe for btc?
 		const estimateArch = urlParams.get('estimateArch') || 'evm'
 
-		selectedEstimateNetwork =
-			estimateReadChains.find(
-				(c) => c.chainId === Number(estimateNetwork) && c.arch === estimateArch
-			) || estimateReadChains.find((c) => c.chainId === 1)!
-		selectedOracleNetwork =
-			oracleChains.find((c) => c.chainId === Number(oracleNetwork)) ||
-			oracleChains.find((c) => c.chainId === DEFAULT_ORACLE_CHAIN_ID)!
+		selectedEstimateNetwork = getEstimateChainById(
+			estimateChains,
+			Number(estimateNetwork),
+			estimateArch
+		)
+		selectedOracleNetwork = getOracleChainById(oracleChains, Number(oracleNetwork))
 	}
 
 	function getTimeElapsed(timestamp: number) {
@@ -242,27 +236,27 @@
 
 	async function handleV2OracleValuesDisplayData(gasNetContract: Contract) {
 		try {
-			v2RawData = {} as Record<number, [string, number, number]>
+			// v2RawData = {} as Record<number, [string, number, number]>
 			v2NoDataFoundErrorMsg = null
 			v2Timestamp = null
 
 			const arch = archSchemaMap[selectedEstimateNetwork.arch]
 			const { chainId, label } = selectedEstimateNetwork
 
-			const v2ValuesObject = await (
-				chainId === 1 ? mainnetV2ContractTypValues : evmV2ContractTypValues
-			).reduce(async (accPromise, typ) => {
+			const typesByArch = getTypValuesByArch(arch, chainId)
+			if (!typesByArch.length) {
+				throw new Error(`No types found for arch: ${arch}, chainId: ${chainId}`)
+			}
+      console.log(typesByArch)
+			const v2ValuesObject = await typesByArch.reduce(async (accPromise, typ) => {
 				const acc = await accPromise
-				const contractRespPerType = await gasNetContract.get(
-					arch,
-					chainId,
-					typ
-				)
+				const contractRespPerType = await gasNetContract.get(arch, chainId, typ)
 
 				const [value, height, timestamp] = contractRespPerType
 				if (value === 0n && height === 0n && timestamp === 0n) {
 					v2NoDataFoundErrorMsg = `Estimate not available for ${label} at selected recency`
 				}
+        console.log(value)
 
 				const resDataMap = evmTypeSchema?.[typ]
 				if (!resDataMap) {
@@ -272,7 +266,7 @@
 					return acc
 				}
 
-				v2RawData[typ] = [value, height, timestamp]
+				// v2RawData[typ] = [value, height, timestamp]
 				v2Timestamp = Number(timestamp)
 				return {
 					...acc,
@@ -297,39 +291,36 @@
 		try {
 			const arch = archSchemaMap[selectedEstimateNetwork.arch]
 			const { chainId, label } = selectedEstimateNetwork
+			const typesByArch = getTypValuesByArch(arch, chainId)
 
-			return await (chainId === 1 ? mainnetV2ContractTypValues : evmV2ContractTypValues).reduce(
-				async (accPromise, typ) => {
-					const acc = await accPromise
+			if (!typesByArch.length) {
+				throw new Error(`No types found for arch: ${arch}, chainId: ${chainId}`)
+			}
+			return await typesByArch.reduce(async (accPromise, typ) => {
+				const acc = await accPromise
 
-					const contractRespPerType = await gasNetContract.get(
-						arch,
-						chainId,
-						typ
+				const contractRespPerType = await gasNetContract.get(arch, chainId, typ)
+
+				const [value, height, timestamp] = contractRespPerType
+				if (value === 0n && height === 0n && timestamp === 0n) {
+					v2NoDataFoundErrorMsg = `Estimate not available for ${label} at selected recency`
+				}
+
+				const resDataMap = evmTypeSchema?.[typ]
+				if (!resDataMap) {
+					console.error(
+						`No resDataMap found within the Type Map Schema for arch: ${arch}, chainId: ${chainId}, typ: ${typ}`
 					)
+					return acc
+				}
 
-					const [value, height, timestamp] = contractRespPerType
-					if (value === 0n && height === 0n && timestamp === 0n) {
-						v2NoDataFoundErrorMsg = `Estimate not available for ${label} at selected recency`
-					}
-
-					const resDataMap = evmTypeSchema?.[typ]
-					if (!resDataMap) {
-						console.error(
-							`No resDataMap found within the Type Map Schema for arch: ${arch}, chainId: ${chainId}, typ: ${typ}`
-						)
-						return acc
-					}
-
-					return {
-						timestamp: Number(timestamp),
-						...acc,
-						// Added for validation
-						[resDataMap.name]: Number(value)
-					}
-				},
-				Promise.resolve({})
-			)
+				return {
+					timestamp: Number(timestamp),
+					...acc,
+					// Added for validation
+					[resDataMap.name]: Number(value)
+				}
+			}, Promise.resolve({}))
 		} catch (error) {
 			console.error('Error Reading Gas Estimate from Oracle:', error)
 			const revertErrorFromContract = (error as any)?.info?.error?.message || (error as any)?.reason
@@ -433,14 +424,20 @@
 </script>
 
 <main class="h-full min-h-[100vh] w-full bg-black p-4 font-sans text-white sm:p-6">
-	<div class="mx-auto max-w-3xl rounded-xl border border-gray-800 bg-brandForeground p-6 shadow-2xl sm:p-8">
+	<div
+		class="mx-auto max-w-3xl rounded-xl border border-gray-800 bg-brandForeground p-6 shadow-2xl sm:p-8"
+	>
 		<div class="relative flex flex-col items-center justify-center">
 			<h1 class="mb-8 text-center text-5xl font-normal">Gas Network</h1>
-			<span class="absolute left-0 top-0 rounded-full border border-brandAction px-4 py-2 text-sm font-medium text-brandAction hover:bg-brandAction/10">
+			<span
+				class="absolute left-0 top-0 rounded-full border border-brandAction px-4 py-2 text-sm font-medium text-brandAction hover:bg-brandAction/10"
+			>
 				<a href="https://gasnetwork.notion.site/" target="_blank">Documentation</a>
 			</span>
 			{#if $wallets$?.[0]?.accounts?.[0]?.address}
-				<span class="absolute right-0 top-0 rounded-full border border-gray-400 px-4 py-2 text-sm font-medium text-white">
+				<span
+					class="absolute right-0 top-0 rounded-full border border-gray-400 px-4 py-2 text-sm font-medium text-white"
+				>
 					{formatAddress($wallets$?.[0]?.accounts?.[0]?.address)}
 				</span>
 			{/if}
@@ -448,8 +445,10 @@
 
 		{#if onboard?.connectWallet && !$wallets$?.length}
 			<div class="flex flex-col gap-2">
-				<button class="w-full rounded-full bg-brandAction px-8 py-4 text-lg font-medium text-black transition-all hover:bg-brandAction/70"
-					on:click={() => onboard.connectWallet()}>
+				<button
+					class="w-full rounded-full bg-brandAction px-8 py-4 text-lg font-medium text-black transition-all hover:bg-brandAction/70"
+					on:click={() => onboard.connectWallet()}
+				>
 					Connect Wallet
 				</button>
 			</div>
@@ -491,13 +490,15 @@
 
 					<div class="flex items-center justify-between gap-5">
 						<div class="flex w-full flex-col gap-1">
-							<label for="read-chain" class="ml-1 text-xs font-medium text-white">Estimates For</label>
+							<label for="read-chain" class="ml-1 text-xs font-medium text-white"
+								>Estimates For</label
+							>
 							<select
 								id="read-chain"
 								bind:value={selectedEstimateNetwork}
 								class="w-full cursor-pointer rounded-lg border px-3 py-3 text-sm text-gray-800 hover:border-brandAction focus:border-brandAction focus:ring-2 focus:ring-brandAction/10"
 							>
-								{#each orderAndFilterReadChainsAlphabetically(estimateReadChains!) as chain}
+								{#each orderAndFilterReadChainsAlphabetically(estimateChains!) as chain}
 									<option value={chain}>{chain.label}</option>
 								{/each}
 							</select>
@@ -529,8 +530,10 @@
 
 					{#if isLoading}
 						<div class="my-2 flex flex-col items-center gap-2">
-							<div class="h-14 w-14 animate-spin rounded-full border-4 border-brandAccent/30 border-t-brandAccent"></div>
-							<p class="text-center text-brandAccent/90 sm:text-left">
+							<div
+								class="border-brandAccent/30 border-t-brandAccent h-14 w-14 animate-spin rounded-full border-4"
+							></div>
+							<p class="text-brandAccent/90 text-center sm:text-left">
 								Please Check Connected Browser Wallet for Progress
 							</p>
 						</div>
@@ -573,12 +576,16 @@
 
 								<div class="mx-2 my-4 flex w-full flex-col gap-2 pb-3 text-xs sm:text-sm">
 									{#each Object.entries(v2PublishedGasData) as [key, value]}
+                  {#if value}
 										<div class="flex justify-between gap-4 py-1">
 											<span class="font-medium">{key}:</span>
-											{#if key.includes('Gas')}
+											{#if key.includes('Fee') && selectedEstimateNetwork.arch === 'evm'}
 												<span>{typeof value === 'bigint' ? value.toString() : value} gwei</span>
+											{:else if key.includes('Fee') && selectedEstimateNetwork.arch === 'utxo'}
+												<span>{typeof value === 'bigint' ? value.toString() : value} sats</span>
 											{/if}
 										</div>
+                  {/if}
 									{/each}
 								</div>
 							{/if}
@@ -603,7 +610,7 @@
 		--w3o-border-color: #333333;
 		--w3o-action-color: #59fbf5;
 		--w3o-border-radius: 0.75rem;
-    --onboard-connect-sidebar-progress-background: #575757;
+		--onboard-connect-sidebar-progress-background: #575757;
 	}
 
 	/* Update select styling */

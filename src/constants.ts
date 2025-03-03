@@ -14,7 +14,7 @@ export const utxoV2ContractTypValues = [342]
 
 export const SUPPORTED_ORACLE_VERSIONS = 2
 
-export const defaultOracleMainnetChain: OracleChain = {
+export const defaultOracleChain: OracleChain = {
   chainId: 59144,
 	label: 'Linea',
 	rpcUrl: 'https://rpc.linea.build',
@@ -22,7 +22,7 @@ export const defaultOracleMainnetChain: OracleChain = {
 	blockExplorerUrl: 'https://lineascan.build',
 	testnet: false
 }
-export const DEFAULT_ORACLE_CHAIN_ID = defaultOracleMainnetChain.chainId
+export const DEFAULT_ORACLE_CHAIN_ID = defaultOracleChain.chainId
 
 
 export const archSchemaMap: Record<string, number> = {

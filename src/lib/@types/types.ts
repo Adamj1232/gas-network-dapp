@@ -14,7 +14,7 @@ export interface PayloadValues {
 export interface ReadChain {
 	chainId: number
 	label: string
-	arch: 'evm' | 'btc' | 'unsupported'
+	arch: 'evm' | 'utxo'
 }
 
 export type OracleChain = {
