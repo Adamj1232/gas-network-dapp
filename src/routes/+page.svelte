@@ -36,12 +36,10 @@
 	let readFromGasNetErrorMessage: string | null = null
 	let v2NoDataFoundErrorMsg: string | null = null
 	let readFromTargetNetErrorMessage: string | null = null
-	let v2Timestamp: number | null = null
 	let isLoading = false
 	let wallets$: Observable<WalletState[]>
 	let readGasDataFromTargetChainTime: string
 
-	// Update your selected chain variables to use the enums
 	let selectedEstimateNetwork: ReadChain
 	let selectedOracleNetwork: OracleChain
 
@@ -83,7 +81,7 @@
 			if (!result?.gasNet || !result?.oracle) return null
 			const { gasNet, oracle } = result
 			if (!gasNet || !oracle) return null
-			console.log('oracle', oracle)
+      
       // TODO: Handle for BTC
 			const { base_fee_per_gas, pred_max_priority_fee_per_gas_p90 } = oracle
 			const { payloads } = gasNet
@@ -236,9 +234,7 @@
 
 	async function handleV2OracleValuesDisplayData(gasNetContract: Contract) {
 		try {
-			// v2RawData = {} as Record<number, [string, number, number]>
 			v2NoDataFoundErrorMsg = null
-			v2Timestamp = null
 
 			const arch = archSchemaMap[selectedEstimateNetwork.arch]
 			const { chainId, label } = selectedEstimateNetwork
@@ -266,8 +262,6 @@
 					return acc
 				}
 
-				// v2RawData[typ] = [value, height, timestamp]
-				v2Timestamp = Number(timestamp)
 				return {
 					...acc,
 					// Added for validation
@@ -279,7 +273,6 @@
 			}
 		} catch (error) {
 			v2PublishedGasData = null
-			v2Timestamp = null
 			isLoading = false
 			console.error('Error Reading V2 Published Data:', error)
 			const revertErrorFromContract = (error as any)?.info?.error?.message || (error as any)?.reason
