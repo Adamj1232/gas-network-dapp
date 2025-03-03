@@ -50,9 +50,6 @@
 	// Update your selected chain variables to use the enums
 	let selectedEstimateNetwork: ReadChain
 	let selectedOracleNetwork: OracleChain
-	let selectedTimeout = 3600000
-	let selectedTimeoutDeltaDisplay = 86400000
-	let v2ContractEnabled = true
 
 	let estimateDeltaData$: Subject<any> = new Subject()
 	let intervalId: ReturnType<typeof setInterval>
@@ -130,10 +127,6 @@
 		wallets$ = onboard.state.select('wallets').pipe(share())
 		estimateReadChains = estimateReadChainsPromise
 		oracleChains = oracleChainsPromise
-		const savedSetting = localStorage.getItem('v2ContractEnabled')
-		if (savedSetting !== null) {
-			v2ContractEnabled = savedSetting === 'true'
-		}
 
 		// OnMount get the queryParams from the URL and set the selectedEstimateNetwork and selectedOracleNetwork
 		getQueryParams()
@@ -227,7 +220,6 @@
 			const chainId = selectedEstimateNetwork.chainId
 
 			const { arch } = selectedEstimateNetwork
-			console.log(archSchemaMap, arch, archSchemaMap[arch])
 			const rawTargetNetworkData = await gasNetContract.getValues(archSchemaMap[arch], chainId)
 
 			const paramsPayload = parsePayload(rawTargetNetworkData)
@@ -261,11 +253,10 @@
 				chainId === 1 ? mainnetV2ContractTypValues : evmV2ContractTypValues
 			).reduce(async (accPromise, typ) => {
 				const acc = await accPromise
-				const contractRespPerType = await gasNetContract.getInTime(
+				const contractRespPerType = await gasNetContract.get(
 					arch,
 					chainId,
-					typ,
-					selectedTimeout
+					typ
 				)
 
 				const [value, height, timestamp] = contractRespPerType
