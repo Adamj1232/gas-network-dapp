@@ -310,10 +310,7 @@
 			return await (chainId === 1 ? mainnetV2ContractTypValues : evmV2ContractTypValues).reduce(
 				async (accPromise, typ) => {
 					const acc = await accPromise
-          console.log(						arch,
-						chainId,
-						typ,
-						selectedTimeoutDeltaDisplay)
+
 					const contractRespPerType = await gasNetContract.get(
 						arch,
 						chainId,
