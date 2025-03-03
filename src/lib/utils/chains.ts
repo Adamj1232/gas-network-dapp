@@ -1,4 +1,5 @@
 import {
+	DEFAULT_ORACLE_CHAIN_ID,
 	defaultOracleChain,
 	evmV2ContractTypValues,
 	mainnetV2ContractTypValues
@@ -8,7 +9,7 @@ import { utxoV2ContractTypValues } from '../../constants'
 
 export const getOracleChainById = (
 	chains: OracleChain[],
-	chainId: number = 1,
+	chainId: number = DEFAULT_ORACLE_CHAIN_ID,
 	arch: string = 'evm'
 ): OracleChain => {
 	return (

@@ -4,7 +4,15 @@
 	import { timer, type Observable, of, Subject } from 'rxjs'
 	import type { OnboardAPI, WalletState } from '@web3-onboard/core'
 	import { getOnboard } from '$lib/services/web3-onboard'
-	import { gasNetwork, archSchemaMap, evmTypeSchema, SUPPORTED_ORACLE_VERSIONS } from '../constants'
+	import {
+		gasNetwork,
+		archSchemaMap,
+		evmTypeSchema,
+		SUPPORTED_ORACLE_VERSIONS,
+		DEFAULT_ORACLE_CHAIN_ID,
+		DEFAULT_READ_CHAIN_ID,
+		DEFAULT_READ_CHAIN_ARCH
+	} from '../constants'
 	import consumerV2 from '$lib/abis/consumerV2.json'
 	import gasnetV2 from '$lib/abis/gasnetV2.json'
 	import type { OracleChain, ReadChain } from '$lib/@types/types'
@@ -121,18 +129,16 @@
 		estimateChains = estimateReadChainsPromise
 		oracleChains = oracleChainsPromise
 
-		// OnMount get the queryParams from the URL and set the selectedEstimateNetwork and selectedOracleNetwork
 		getQueryParams()
 		intervalId = setInterval(getDeltaData, 5000)
 	})
 
-	// Cleanup subscriptions
 	onDestroy(() => {
+    // Cleanup subscriptions
 		subscriptions.forEach((sub) => sub.unsubscribe())
 		clearInterval(intervalId)
 	})
 
-	// Setup subscriptions
 	const subscriptions = [
 		estimateDeltaData$.subscribe((result) => {
 			if (!result) return
@@ -159,16 +165,17 @@
 	const getQueryParams = () => {
 		if (!estimateChains?.length || !oracleChains?.length) return
 		const urlParams = new URLSearchParams(window.location.search)
-		const oracleNetwork = urlParams.get('oracleNetwork')
-		const estimateNetwork = urlParams.get('estimateNetwork')
-		const estimateArch = urlParams.get('estimateArch') || 'evm'
+		const oracleNetwork = urlParams.get('oracleNetwork') || DEFAULT_ORACLE_CHAIN_ID.toString()
+		const estimateNetwork = urlParams.get('estimateNetwork') || DEFAULT_READ_CHAIN_ID.toString()
+		const estimateArch = urlParams.get('estimateArch') || DEFAULT_READ_CHAIN_ARCH
 
 		selectedEstimateNetwork = getEstimateChainById(
 			estimateChains,
-			Number(estimateNetwork),
+			parseInt(estimateNetwork),
 			estimateArch
 		)
-		selectedOracleNetwork = getOracleChainById(oracleChains, Number(oracleNetwork))
+
+		selectedOracleNetwork = getOracleChainById(oracleChains, parseInt(oracleNetwork))
 	}
 
 	function getTimeElapsed(timestamp: number) {
@@ -451,7 +458,7 @@
 			</div>
 		{/if}
 
-		{#if $wallets$}
+		{#if $wallets$ && selectedEstimateNetwork && selectedOracleNetwork}
 			{#each $wallets$ as { provider }}
 				<div class="flex flex-col gap-2 sm:gap-4">
 					<!-- Display the results -->

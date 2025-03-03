@@ -23,6 +23,8 @@ export const defaultOracleChain: OracleChain = {
 	testnet: false
 }
 export const DEFAULT_ORACLE_CHAIN_ID = defaultOracleChain.chainId
+export const DEFAULT_READ_CHAIN_ID = 1
+export const DEFAULT_READ_CHAIN_ARCH = 'evm'
 
 
 export const archSchemaMap: Record<string, number> = {
