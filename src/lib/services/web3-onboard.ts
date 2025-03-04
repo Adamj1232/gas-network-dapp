@@ -1,4 +1,4 @@
-import gasNetIcon from '$lib/svg/gas-network-icon.svg?raw'
+import gasNetIcon from '$lib/svg/gas-net-icon-v2.svg?raw'
 import type { OnboardAPI } from '@web3-onboard/core'
 import walletConnectModule from '@web3-onboard/walletconnect'
 import coinbaseModule from '@web3-onboard/coinbase'
