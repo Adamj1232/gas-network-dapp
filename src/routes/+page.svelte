@@ -29,6 +29,7 @@
 	import { onDestroy } from 'svelte'
 	import { getEstimateChainById, getOracleChainById, getTypValuesByArch } from '$lib/utils/chains'
 	import gasNetIcon from '$lib/svg/gas-network-icon.svg?raw'
+	import { fireConfetti } from '$lib/services/confetti'
 
 	const currentStep = writable(0)
 
@@ -66,7 +67,7 @@
 	}
 
 	// Calculate time elapsed
-	const timeElapsed2$ = estimateDeltaData$.pipe(
+	const timeElapsed$ = estimateDeltaData$.pipe(
 		switchMap((result) => {
 			if (!result?.oracle?.timestamp) return of('')
 			const timestamp = Number(result.oracle.timestamp)
@@ -130,11 +131,11 @@
 		oracleChains = oracleChainsPromise
 
 		getQueryParams()
-		intervalId = setInterval(getDeltaData, 5000)
+		intervalId = setInterval(getDeltaData, 10000)
 	})
 
 	onDestroy(() => {
-    // Cleanup subscriptions
+		// Cleanup subscriptions
 		subscriptions.forEach((sub) => sub.unsubscribe())
 		clearInterval(intervalId)
 	})
@@ -145,15 +146,15 @@
 			gasNetEstimate.set(result.gasNet)
 			oracleReading.set(result.oracle)
 		}),
-		timeElapsed2$.subscribe()
+		timeElapsed$.subscribe()
 	]
 
 	async function getDeltaData() {
-		if (!$wallets$?.[0] || !selectedEstimateNetwork) return null
+		if (!$wallets$?.[0]?.provider || !selectedEstimateNetwork) return null
 
 		const [gasNetResult, oracleResults] = await Promise.all([
 			fetchGasEstimationFromGasNet(),
-			readFromOracleDeltaDisplay($wallets$?.[0]?.provider)
+			readFromOracleDeltaDisplay()
 		])
 		// Use the next method to push new data into the Subject
 		estimateDeltaData$.next({
@@ -249,7 +250,7 @@
 			if (!typesByArch.length) {
 				throw new Error(`No types found for arch: ${arch}, chainId: ${chainId}`)
 			}
-			console.log(typesByArch)
+
 			const v2ValuesObject = await typesByArch.reduce(async (accPromise, typ) => {
 				const acc = await accPromise
 				const contractRespPerType = await gasNetContract.get(arch, chainId, typ)
@@ -275,6 +276,7 @@
 				}
 			}, Promise.resolve({}))
 			if (v2ValuesObject) {
+				await fireConfetti()
 				v2PublishedGasData = v2ValuesObject
 			}
 		} catch (error) {
@@ -297,7 +299,6 @@
 			}
 			return await typesByArch.reduce(async (accPromise, typ) => {
 				const acc = await accPromise
-
 				const contractRespPerType = await gasNetContract.get(arch, chainId, typ)
 
 				const [value, height, timestamp] = contractRespPerType
@@ -327,11 +328,14 @@
 		}
 	}
 
-	const readFromOracleDeltaDisplay = async (provider: any) => {
+	const readFromOracleDeltaDisplay = async () => {
 		try {
 			const { ethers } = await loadEthers()
-			const ethersProvider = new ethers.BrowserProvider(provider, 'any')
+			const walletProvider = $wallets$?.[0]?.provider
+
+			const ethersProvider = new ethers.BrowserProvider(walletProvider, 'any')
 			const signer = await ethersProvider.getSigner()
+
 			// TODO: make this reactive if we support more oracle versions in this dapp
 			const contractAddress = selectedOracleNetwork.addressByVersion[SUPPORTED_ORACLE_VERSIONS]
 
@@ -392,6 +396,7 @@
 
 			isLoading = false
 			transactionHash = receipt.hash
+
 			await readFromOracle(provider)
 		} catch (error) {
 			const revertErrorFromGasNetContract = (error as any)?.info?.error?.message
@@ -428,10 +433,10 @@
 	>
 		<div class="relative flex flex-col items-center justify-center">
 			<div>
-				<div class="flex w-64 items-center">
+				<div class="m-auto flex w-64 items-center">
 					{@html gasNetIcon}
 				</div>
-				<h1 class="mb-8 text-center text-5xl font-normal">Gas Network</h1>
+				<h1 class="mb-8 text-center text-5xl font-normal">Capture The Gap</h1>
 			</div>
 			<span
 				class="absolute left-0 top-0 rounded-full border border-brandAction px-4 py-2 text-sm font-medium text-brandAction hover:bg-brandAction/10"
@@ -461,15 +466,15 @@
 		{#if $wallets$ && selectedEstimateNetwork && selectedOracleNetwork}
 			{#each $wallets$ as { provider }}
 				<div class="flex flex-col gap-2 sm:gap-4">
-					<!-- Display the results -->
 					<div class="space-y-4">
-						<!-- Last Updated Time -->
-						<div class="text-sm text-gray-500">
-							Oracle Last updated: {$timeElapsed2$}
-						</div>
-
 						<!-- Gas Values -->
 						{#if $gasNetEstimate && $oracleReading}
+							<!-- Last Updated Time -->
+							{#if $timeElapsed$}
+								<div class="text-sm text-gray-500">
+									Oracle Last updated: {$timeElapsed$}
+								</div>
+							{/if}
 							<div class="space-y-2">
 								<!-- Delta Display -->
 								{#if $gasDelta$}

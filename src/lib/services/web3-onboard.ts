@@ -18,7 +18,8 @@ export async function getOnboard() {
 			options: {
 				extensionOnly: false,
 				dappMetadata: {
-					name: 'Gas Network'
+					name: 'Gas Network',
+          url: 'https://gas-network-dapp.vercel.app'
 				}
 			}
 		})
