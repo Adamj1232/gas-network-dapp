@@ -399,6 +399,7 @@
 
 			await readFromOracle(provider)
 		} catch (error) {
+      currentStep.set(0)
 			const revertErrorFromGasNetContract = (error as any)?.info?.error?.message
 			console.error('Publication error:', error)
 			publishErrorMessage = revertErrorFromGasNetContract || (error as string)
@@ -424,6 +425,14 @@
 	function formatAddress(address: string | undefined): string {
 		if (!address) return ''
 		return `${address.slice(0, 6)}...${address.slice(-4)}`
+	}
+
+	function resetErrorsAndSteps() {
+		currentStep.set(0)
+		readFromGasNetErrorMessage = null
+		readFromTargetNetErrorMessage = null
+		publishErrorMessage = null
+		v2NoDataFoundErrorMsg = null
 	}
 </script>
 
@@ -513,6 +522,9 @@
 							<select
 								id="read-chain"
 								bind:value={selectedEstimateNetwork}
+								on:change={() => {
+									resetErrorsAndSteps()
+								}}
 								class="w-full cursor-pointer rounded-lg border px-3 py-3 text-sm text-gray-800 hover:border-brandAction focus:border-brandAction focus:ring-2 focus:ring-brandAction/10"
 							>
 								{#each orderAndFilterReadChainsAlphabetically(estimateChains!) as chain}
@@ -525,6 +537,9 @@
 							<select
 								id="write-chain"
 								bind:value={selectedOracleNetwork}
+								on:change={() => {
+									resetErrorsAndSteps()
+								}}
 								class="w-full cursor-pointer rounded-lg border px-3 py-3 text-sm text-gray-800 hover:border-brandAction focus:border-brandAction focus:ring-2 focus:ring-brandAction/10"
 							>
 								{#each orderAndFilterOraclesAlphabetically(oracleChains ?? []) as chain}
