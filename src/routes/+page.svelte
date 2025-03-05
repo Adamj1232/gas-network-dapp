@@ -27,7 +27,12 @@
 	import { writable } from 'svelte/store'
 	import { switchMap } from 'rxjs/operators'
 	import { onDestroy } from 'svelte'
-	import { getEstimateChainById, getOracleChainById, getTypValuesByArch } from '$lib/utils/chains'
+	import {
+		getEstimateChainById,
+		getOracleChainById,
+		getTypValuesByArch,
+		handleChainEstimationFees
+	} from '$lib/utils/chains'
 	import gasNetIcon from '$lib/svg/gas-network-icon.svg?raw'
 	import { fireConfetti } from '$lib/services/confetti'
 
@@ -86,37 +91,11 @@
 	// Calculate gas delta
 	const gasDelta$ = estimateDeltaData$.pipe(
 		map((result) => {
-			if (!result?.gasNet || !result?.oracle) return null
+			if (!result?.gasNet && !result?.oracle) return null
 			const { gasNet, oracle } = result
-			if (!gasNet || !oracle) return null
+			if (!gasNet && !oracle) return null
 
-			// TODO: Handle for BTC
-			const { base_fee_per_gas, pred_max_priority_fee_per_gas_p90 } = oracle
-			const { payloads } = gasNet
-
-			const gasNetBaseFeePerGas = hexToNumber(
-				payloads.find((p: { typ: number }) => p.typ === 107)?.value
-			)
-			const gasNetPredMaxPriorityFeePerGasP90 = hexToNumber(
-				payloads.find((p: { typ: number }) => p.typ === 322)?.value
-			)
-
-			const gasNetGasPrice = gasNetBaseFeePerGas + gasNetPredMaxPriorityFeePerGasP90
-
-			const oracleGasPrice = Number(base_fee_per_gas) + Number(pred_max_priority_fee_per_gas_p90)
-
-			return {
-				gasNetGasPrice: toGwei(gasNetGasPrice),
-				gasNetHeight: Number(gasNet.height),
-				oracleGasPrice: toGwei(oracleGasPrice),
-				oracleHeight: Number(oracle.height),
-				difference:
-					gasNetGasPrice && oracleGasPrice ? toGwei(gasNetGasPrice - oracleGasPrice) : undefined,
-				percentage:
-					gasNetGasPrice && oracleGasPrice
-						? ((toGwei(gasNetGasPrice) - toGwei(oracleGasPrice)) / toGwei(oracleGasPrice)) * 100
-						: undefined
-			}
+			return handleChainEstimationFees(oracle, gasNet, selectedEstimateNetwork.arch)
 		})
 	)
 
@@ -161,6 +140,7 @@
 			fetchGasEstimationFromGasNet(),
 			readFromOracleDeltaDisplay()
 		])
+    console.log(gasNetResult, oracleResults)
 		// Use the next method to push new data into the Subject
 		estimateDeltaData$.next({
 			gasNet: gasNetResult,
@@ -205,14 +185,8 @@
 		return ethersModule
 	}
 
-	const hexToNumber = (hex: string): number => {
-		return Number(BigInt(hex))
-	}
-
-	const toGwei = (value: number | bigint): number => Number(value) / 1e9
-
-	async function fetchGasEstimationFromGasNet(stepUp?: boolean) {
-		if (stepUp) {
+	async function fetchGasEstimationFromGasNet(actionTriggered?: boolean) {
+		if (actionTriggered) {
 			isLoading = true
 			transactionHash = null
 		}
@@ -232,15 +206,17 @@
 				throw new Error(`Failed to fetch gas estimation: ${paramsPayload}`)
 			}
 
-			stepUp && currentStep.set(2)
+			actionTriggered && currentStep.set(2)
 			v2ContractRawRes = rawTargetNetworkData
 			return paramsPayload
 		} catch (error) {
-			const revertErrorFromContract = (error as any)?.info?.error?.message
 			console.error(error)
-			readFromGasNetErrorMessage = revertErrorFromContract || (error as string)
-			isLoading = false
-			return null
+			if (actionTriggered) {
+				const revertErrorFromContract = (error as any)?.info?.error?.message
+				readFromGasNetErrorMessage = revertErrorFromContract || (error as string)
+				isLoading = false
+			}
+      return null
 		}
 	}
 
@@ -329,8 +305,8 @@
 			}, Promise.resolve({}))
 		} catch (error) {
 			console.error('Error Reading Gas Estimate from Oracle:', error)
-			const revertErrorFromContract = (error as any)?.info?.error?.message || (error as any)?.reason
-			readFromTargetNetErrorMessage = revertErrorFromContract || (error as string)
+			// const revertErrorFromContract = (error as any)?.info?.error?.message || (error as any)?.reason
+			// readFromTargetNetErrorMessage = revertErrorFromContract || (error as string)
 		}
 	}
 
@@ -342,7 +318,6 @@
 			const ethersProvider = new ethers.BrowserProvider(walletProvider, 'any')
 			const signer = await ethersProvider.getSigner()
 
-			// TODO: make this reactive if we support more oracle versions in this dapp
 			const contractAddress = selectedOracleNetwork.addressByVersion[SUPPORTED_ORACLE_VERSIONS]
 
 			const gasNetContract = new ethers.Contract(contractAddress, consumerV2.abi, signer)
@@ -448,7 +423,7 @@
 	>
 		<div class="relative flex flex-col items-center justify-center">
 			<div>
-				<div class="m-auto flex w-64 items-center">
+				<div class="m-auto flex w-72 items-center">
 					{@html gasNetIcon}
 				</div>
 				<h1 class="mb-8 text-center text-5xl font-normal">Capture The Gap</h1>
@@ -488,7 +463,7 @@
 								<!-- Delta Display -->
 								{#if $gasDelta$}
 									<div class="grid grid-cols-3 gap-4 text-left">
-										{#if $gasDelta$?.oracleGasPrice}
+										{#if $gasDelta$?.gasNetGasPrice}
 											<span>Block {$gasDelta$?.gasNetHeight}</span>
 											<span class="text-center">GasNet Estimate</span>
 											<span class="text-right">{$gasDelta$?.gasNetGasPrice.toFixed(4)} gwei</span>
@@ -500,7 +475,7 @@
 										{#if $gasDelta$?.oracleGasPrice}
 											<span class="text-right">{$gasDelta$.oracleGasPrice.toFixed(4)} gwei</span>
 										{:else}
-											<span class="text-right">Not Yet Published For This Network</span>
+											<span class="text-right">No Oracle Data for {selectedEstimateNetwork.label}</span>
 										{/if}
 									</div>
 									{#if $gasDelta$.difference && $gasDelta$.percentage && $timeElapsed$}
