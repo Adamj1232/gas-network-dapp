@@ -72,13 +72,16 @@
 			if (!result?.oracle?.timestamp) return of('')
 			const timestamp = Number(result.oracle.timestamp)
 			return timer(0, 1000).pipe(
-				map(() => {
-					return getTimeElapsed(timestamp)
-				}),
+				map(() => getTimeElapsed(timestamp)),
 				share()
 			)
 		})
 	)
+
+	// Force immediate subscription to ensure reactivity
+	$: {
+		$timeElapsed$
+	}
 
 	// Calculate gas delta
 	const gasDelta$ = estimateDeltaData$.pipe(
@@ -104,7 +107,9 @@
 
 			return {
 				gasNetGasPrice: toGwei(gasNetGasPrice),
+				gasNetHeight: Number(gasNet.height),
 				oracleGasPrice: toGwei(oracleGasPrice),
+				oracleHeight: Number(oracle.height),
 				difference:
 					gasNetGasPrice && oracleGasPrice ? toGwei(gasNetGasPrice - oracleGasPrice) : undefined,
 				percentage:
@@ -222,7 +227,7 @@
 			const rawTargetNetworkData = await gasNetContract.getValues(archSchemaMap[arch], chainId)
 
 			const paramsPayload = parsePayload(rawTargetNetworkData)
-
+			console.log(226, paramsPayload)
 			if (!paramsPayload || !rawTargetNetworkData) {
 				throw new Error(`Failed to fetch gas estimation: ${paramsPayload}`)
 			}
@@ -315,6 +320,7 @@
 				}
 
 				return {
+					height: Number(height),
 					timestamp: Number(timestamp),
 					...acc,
 					// Added for validation
@@ -399,7 +405,7 @@
 
 			await readFromOracle(provider)
 		} catch (error) {
-      currentStep.set(0)
+			currentStep.set(0)
 			const revertErrorFromGasNetContract = (error as any)?.info?.error?.message
 			console.error('Publication error:', error)
 			publishErrorMessage = revertErrorFromGasNetContract || (error as string)
@@ -478,31 +484,32 @@
 					<div class="space-y-4">
 						<!-- Gas Values -->
 						{#if $gasNetEstimate && $oracleReading}
-							<!-- Last Updated Time -->
-							{#if $timeElapsed$}
-								<div class="text-sm text-gray-500">
-									Oracle Last updated: {$timeElapsed$}
-								</div>
-							{/if}
 							<div class="space-y-2">
 								<!-- Delta Display -->
 								{#if $gasDelta$}
-									<div class="flex justify-between">
-										<span>GasNet Estimate:</span>
-										<span>{$gasDelta$.gasNetGasPrice} gwei</span>
-									</div>
-									<div class="flex justify-between">
-										<span>Oracle Reading:</span>
-										{#if $gasDelta$.oracleGasPrice}
-											<span>{$gasDelta$.oracleGasPrice} gwei</span>
-										{:else}
-											<span>Not Yet Published For This Network</span>
+									<div class="grid grid-cols-3 gap-4 text-left">
+										{#if $gasDelta$?.oracleGasPrice}
+											<span>Block {$gasDelta$?.gasNetHeight}</span>
+											<span class="text-center">GasNet Estimate</span>
+											<span class="text-right">{$gasDelta$?.gasNetGasPrice.toFixed(4)} gwei</span>
 										{/if}
 									</div>
-									{#if $gasDelta$.difference && $gasDelta$.percentage}
-										<div class="flex justify-between font-medium">
-											<span>Difference:</span>
-											<span class={$gasDelta$.difference > 0 ? 'text-green-500' : 'text-red-500'}>
+									<div class="grid grid-cols-3 gap-4 text-left">
+										<span>Block {$gasDelta$?.oracleHeight}</span>
+										<span class="text-center">Oracle</span>
+										{#if $gasDelta$?.oracleGasPrice}
+											<span class="text-right">{$gasDelta$.oracleGasPrice.toFixed(4)} gwei</span>
+										{:else}
+											<span class="text-right">Not Yet Published For This Network</span>
+										{/if}
+									</div>
+									{#if $gasDelta$.difference && $gasDelta$.percentage && $timeElapsed$}
+										<div class="grid grid-cols-3 gap-4 text-left font-medium">
+											<span>Oracle updated: {$timeElapsed$}</span>
+											<span class="text-center">Difference</span>
+											<span
+												class={`text-right ${$gasDelta$.difference > 0 ? 'text-green-500' : 'text-red-500'}`}
+											>
 												{$gasDelta$.difference.toFixed(4)} gwei ({$gasDelta$.percentage.toFixed(
 													2
 												)}%)
